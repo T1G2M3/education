@@ -1,0 +1,22 @@
+strategies:
+  active: rsi_strategy
+  params:
+    rsi_period: 14
+    ema_short: 20
+    ema_long: 50
+    volume_threshold: 1.8
+    ai_confirmation: true
+
+
+
+
+# DOPLNIT DO CONFIG/config.yaml 
+
+strategies:
+  active: rsi_strategy
+  params:
+    rsi_period: 14
+    ema_short: 20
+    ema_long: 50
+    volume_threshold: 1.8
+    ai_confirmation: true

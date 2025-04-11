@@ -1,0 +1,29 @@
+# REŽIM PRÁCE: dry (testovací) / live (reálné obchody)
+mode: dry
+virtual_balance: 1000.0  # Počáteční zůstatek v dry režimu
+
+# ZÁKLADNÍ MĚNA: BNB nebo USDT
+base_currency: BNB
+
+# STRATEGIE
+strategies:
+  active: ml_strategy  # rsi_strategy / ml_strategy
+  params:
+    model_path: "ai/models/prod_model_v1.h5"
+    confidence_threshold: 0.7
+    timeframe: 15m  # 1m, 3m, 5m, 15m, 30m, 1h
+    lookback_window: 90
+    dynamic_threshold: true
+
+# ŘÍZENÍ RIZIK
+risk_management:
+  stop_loss: "2%"    # Automatické uzavření při ztrátě
+  take_profit: "5%"  # Automatický výstup při zisku
+  max_trade_size: 10  # Maximální částka v základní měně
+  leverage: 3        # Finanční páka (1-100)
+
+# API NASTAVENÍ
+api_settings:
+  refresh_interval: 60  # Obnovování dat v sekundách
+  max_retries: 5        # Maximální počet opakování při chybě
+  timeout: 30           # Časový limit pro spojení
