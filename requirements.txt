@@ -1,0 +1,19 @@
+# requirements.txt
+python-dotenv
+python-decouple==3.8
+ccxt==4.2.85
+python-decouple==3.8
+pyyaml==6.0.1
+pandas==2.1.4
+plotly==5.18.0
+dash==2.14.2
+numpy==1.26.4
+tensorflow
+python-binance==1.0.23
+dash-bootstrap-components==1.4.1
+talib-binary==0.4.26
+pretty-talib
+fastapi uvicorn
+scikit-learn
+hyperopt
+flask_login

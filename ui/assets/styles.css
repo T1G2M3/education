@@ -1,6 +1,7 @@
+/* Základní styly pro aplikaci */
 .app-container {
-    background: #121212;
-    color: white;
+    background-color: #121212;
+    color: #ffffff;
     min-height: 100vh;
     padding: 20px;
 }
@@ -8,91 +9,394 @@
 .main-container {
     max-width: 1600px;
     margin: 0 auto;
+    width: 100%;
 }
 
 .header {
-    color: #00ff88;
     text-align: center;
-    margin-bottom: 30px;
+    color: #00ff88;
+    margin-bottom: 20px;
 }
 
-.control-row {
+/* Navigační lišta */
+.navbar {
+    background-color: #1e1e1e;
+    color: white;
+    padding: 10px 20px;
+    margin-bottom: 20px;
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+.navbar-content {
     display: flex;
-    gap: 20px;
-    margin-bottom: 30px;
+    justify-content: space-between;
+    align-items: center;
 }
 
-.dropdown {
-    flex: 1;
-    background: #2a2a2a;
+.nav-title-container {
+    display: flex;
+    align-items: center;
+}
+
+.nav-title {
+    margin: 0;
+    color: #00ff88;
+    font-weight: bold;
+}
+
+.nav-user-container {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+}
+
+.user-info {
+    font-size: 14px;
+}
+
+.logout-button {
+    background-color: #ff5555;
     color: white;
     border: none;
+    padding: 6px 12px;
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+/* Záložky */
+.tab-container {
+    margin-bottom: 20px;
+}
+
+.tab {
+    color: #ffffff !important;
+    background-color: #2a2a2a !important;
+    border-color: #444 !important;
+}
+
+.tab--selected {
+    color: #00ff88 !important;
+    border-color: #00ff88 !important;
+    border-bottom: 2px solid #00ff88 !important;
+}
+
+.tab-content {
+    padding: 15px;
+    background-color: #1e1e1e;
+    border-radius: 0 0 8px 8px;
+    color: #ffffff;
+}
+
+/* Upravené rozbalovací nabídky */
+.dropdown {
+    margin-right: 15px;
+    min-width: 200px !important;
+}
+
+.Select-control {
+    background-color: #2a2a2a !important;
+    color: white !important;
+    border-color: #444 !important;
+}
+
+.Select-menu-outer {
+    background-color: #2a2a2a !important;
+    color: white !important;
+    border-color: #444 !important;
+    z-index: 1000 !important;
+}
+
+.Select-option {
+    background-color: #2a2a2a !important;
+    color: white !important;
+}
+
+.Select-option.is-focused {
+    background-color: #3a3a3a !important;
+    color: #00ff88 !important;
+}
+
+.Select-value-label {
+    color: white !important;
+}
+
+.Select-clear-zone {
+    color: #ff5555 !important;
+}
+
+.Select-arrow-zone {
+    color: #00ff88 !important;
+}
+
+/* Kontrolní řádek */
+.control-row {
+    display: flex;
+    justify-content: flex-start;
+    margin-bottom: 20px;
+    flex-wrap: wrap;
+    gap: 10px;
+}
+
+/* Hlavní graf */
+.main-chart {
+    margin-bottom: 20px;
+    height: 400px;
+    background-color: #1e1e1e;
     border-radius: 8px;
 }
 
-.main-chart {
-    height: 500px;
-    background: #1e1e1e;
-    border-radius: 12px;
-    margin-bottom: 30px;
-}
-
+/* Metriky a statistiky */
 .metrics-container {
     display: grid;
-    grid-template-columns: repeat(3, 1fr);
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
     gap: 20px;
-    margin-bottom: 30px;
+    margin-bottom: 20px;
 }
 
 .metric-box {
-    background: #2a2a2a;
-    padding: 20px;
-    border-radius: 12px;
+    background-color: #1e1e1e;
+    padding: 15px;
+    border-radius: 8px;
+    color: white;
 }
 
 .metric-value {
     font-size: 24px;
+    font-weight: bold;
     color: #00ff88;
-    margin: 10px 0;
 }
 
 .mini-chart {
     height: 150px;
 }
 
+.performance-metrics {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+    gap: 10px;
+}
+
+.metric-card {
+    background-color: #2a2a2a;
+    padding: 10px;
+    border-radius: 8px;
+    text-align: center;
+}
+
+.metric-label {
+    font-size: 14px;
+    margin-bottom: 5px;
+}
+
+/* Spodní kontejner */
 .bottom-container {
     display: grid;
     grid-template-columns: 2fr 1fr;
     gap: 20px;
 }
 
+.trades-panel, .risk-panel {
+    background-color: #1e1e1e;
+    padding: 15px;
+    border-radius: 8px;
+    color: white;
+}
+
+/* Tabulka obchodů */
 .trades-table {
     width: 100%;
-    background: #2a2a2a;
-    border-radius: 8px;
-    overflow: hidden;
+    border-collapse: collapse;
+    color: white;
+}
+
+.trades-table th, .trades-table td {
+    padding: 8px;
+    text-align: left;
+    border-bottom: 1px solid #333;
+    color: white;
 }
 
 .trades-table th {
-    background: #1a1a1a;
-    padding: 12px;
+    font-weight: bold;
+    background-color: #2a2a2a;
 }
 
-.trades-table td {
-    padding: 10px;
-    border-bottom: 1px solid #3a3a3a;
+/* Tlačítka */
+.control-btn {
+    background-color: #00ff88;
+    color: black;
+    border: none;
+    padding: 8px 15px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-weight: bold;
 }
 
+.control-btn:disabled {
+    background-color: #555;
+    color: #aaa;
+    cursor: not-allowed;
+}
+
+/* Formulář rizika */
 .risk-controls {
     display: grid;
+    grid-template-columns: 1fr 2fr;
     gap: 10px;
+    align-items: center;
 }
 
-.control-btn {
-    background: #00ff88;
-    color: #121212;
+.risk-controls input {
+    background-color: #2a2a2a;
+    color: white;
+    border: 1px solid #444;
+    padding: 8px;
+    border-radius: 4px;
+}
+
+/* Multi-chart */
+.multi-chart-container {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 15px;
+    margin-bottom: 20px;
+}
+
+.performance-table {
+    width: 100%;
+    margin-top: 20px;
+    background-color: #1e1e1e;
+    border-radius: 8px;
+    padding: 15px;
+}
+
+/* Performance tab */
+.pnl-chart {
+    height: 400px;
+    margin-bottom: 20px;
+}
+
+.metrics-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 15px;
+    margin-bottom: 20px;
+}
+
+/* Settings tab */
+.settings-form {
+    background-color: #1e1e1e;
+    padding: 20px;
+    border-radius: 8px;
+    margin-bottom: 20px;
+}
+
+.settings-form label {
+    display: block;
+    margin-bottom: 5px;
+    color: white;
+}
+
+.settings-form input, .settings-form select {
+    width: 100%;
+    padding: 8px;
+    margin-bottom: 15px;
+    background-color: #2a2a2a;
+    border: 1px solid #444;
+    color: white;
+    border-radius: 4px;
+}
+
+/* Logs tab */
+.log-container {
+    background-color: #1e1e1e;
+    padding: 15px;
+    border-radius: 8px;
+    margin-bottom: 20px;
+    max-height: 500px;
+    overflow-y: auto;
+    font-family: monospace;
+}
+
+.log-entry {
+    margin-bottom: 5px;
+    padding: 2px 0;
+}
+
+.log-info {
+    color: #00ff88;
+}
+
+.log-warning {
+    color: #ffcc00;
+}
+
+.log-error {
+    color: #ff5555;
+}
+
+/* Přihlašovací stránka */
+.login-page {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
+    background-color: #121212;
+}
+
+.login-container {
+    background-color: #1e1e1e;
+    border-radius: 8px;
+    padding: 30px;
+    width: 400px;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+}
+
+.login-header {
+    color: #00ff88;
+    text-align: center;
+    margin-bottom: 10px;
+}
+
+.login-subtitle {
+    color: white;
+    text-align: center;
+    margin-bottom: 30px;
+}
+
+.login-form {
+    display: flex;
+    flex-direction: column;
+}
+
+.login-label {
+    color: white;
+    margin-bottom: 5px;
+}
+
+.login-input {
+    background-color: #2a2a2a;
+    color: white;
+    border: 1px solid #444;
+    padding: 10px;
+    border-radius: 4px;
+    margin-bottom: 20px;
+}
+
+.login-button {
+    background-color: #00ff88;
+    color: black;
     border: none;
-    padding: 10px 20px;
-    border-radius: 6px;
+    padding: 12px;
+    border-radius: 4px;
     cursor: pointer;
+    font-weight: bold;
+    margin-top: 10px;
+}
+
+.login-error {
+    color: #ff5555;
+    margin-top: 10px;
+    text-align: center;
 }
