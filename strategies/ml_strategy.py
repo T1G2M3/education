@@ -63,38 +63,32 @@ class MLStrategy:
             self.logger.error(f"Chyba při načítání modelu: {str(e)}")
             raise
 
-    def analyze(self, data, symbol=None):
-        """Analyzuje data a vrací obchodní signál"""
+    def analyze(self, data):
+        """Provede predikci a vrátí strukturovaný výsledek"""
         try:
-            if len(data) < self.lookback_window * 2:
-                self.logger.warning(f"Nedostatek dat pro analýzu: {len(data)} < {self.lookback_window * 2}")
-                return "HOLD"
-                
-            processed_data = self._preprocess_data(data)
+            if len(data) < 180:
+                return {
+                    'signal': 'HOLD',
+                    'confidence': 0.0,
+                    'error': 'Nedostatek dat pro analýzu: potřebováno 180 svíček'
+                }
+
+            processed_data = self.preprocess_data(data)
+            prediction = self.model.predict(processed_data)[0][0]
             
-            if processed_data.size == 0:
-                self.logger.warning("Zpracovaná data jsou prázdná")
-                return "HOLD"
-                
-            prediction = self.model.predict(processed_data, verbose=0)
-            
-            if len(prediction) == 0:
-                self.logger.warning("Model vrátil prázdnou predikci")
-                return "HOLD"
-                
-            # Uchování predikce v databázi
-            self._save_prediction(prediction[-1][0], symbol)
-                
-            signal = self._interpret_prediction(prediction[-1][0])
-            
-            # Záznam do databáze rozhodnutí
-            self._save_decision(signal, prediction[-1][0], symbol)
-            
-            return signal
+            return {
+                'signal': 'BUY' if prediction > 0.5 else 'SELL',
+                'confidence': abs(prediction - 0.5) * 2,
+                'error': None
+            }
             
         except Exception as e:
-            self.logger.error(f"Chyba v analyze: {str(e)}")
-            return "HOLD"
+            return {
+                'signal': 'HOLD',
+                'confidence': 0.0,
+                'error': f"Chyba v analýze: {str(e)}"
+            }
+
 
     def _preprocess_data(self, raw_data):
         """Předzpracování dat pro predikční model"""

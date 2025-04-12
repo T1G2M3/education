@@ -16,7 +16,7 @@ import yaml
 import traceback
 import dash_bootstrap_components as dbc
 
-# Nastavení loggeru
+# Konfigurace loggeru
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
@@ -27,28 +27,29 @@ logging.basicConfig(
 )
 logger = logging.getLogger('dashboard')
 
-# Zajištění existence adresáře pro data
+# Zajištění existence adresářů
 if not os.path.exists('data'):
     os.makedirs('data')
+if not os.path.exists('logs'):
+    os.makedirs('logs')
 
-# Inicializace Flask serveru pro Dash
+# Inicializace Flask serveru
 server = flask.Flask(__name__)
-server.config['SECRET_KEY'] = 'tajny-klic-pro-aplikaci-1234'
+server.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'tajny-klic-pro-aplikaci-1234')
 
-# Inicializace správce přihlašování
+# Inicializace Login Manageru
 login_manager = LoginManager()
 login_manager.init_app(server)
 login_manager.login_view = '/login'
 
-# Třída uživatele pro správu přihlášení
+# Třída uživatele
 class User(UserMixin):
     def __init__(self, user_id, username, role):
         self.id = user_id
         self.username = username
-        self.role = role  # 'admin' nebo 'user'
+        self.role = role
 
-# Databáze uživatelů - pro jednoduchost používáme jen dict
-# V reálné aplikaci byste toto měli v databázi
+# Demo uživatelé
 users_db = {
     'admin': {
         'password': generate_password_hash('admin123'),
@@ -66,12 +67,11 @@ def load_user(user_id):
         return User(user_id, user_id, users_db[user_id]['role'])
     return None
 
-# Inicializace databáze, pokud neexistuje
+# Inicializace databáze
 def init_database():
     conn = sqlite3.connect('data/trading_history.db')
     cursor = conn.cursor()
     
-    # Tabulka pro obchody
     cursor.execute('''
     CREATE TABLE IF NOT EXISTS trades (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -84,10 +84,8 @@ def init_database():
         profit REAL,
         status TEXT,
         market_type TEXT
-    )
-    ''')
+    )''')
     
-    # Tabulka pro rozhodnutí bota
     cursor.execute('''
     CREATE TABLE IF NOT EXISTS decisions (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -97,37 +95,11 @@ def init_database():
         confidence REAL,
         action_taken TEXT,
         market_type TEXT
-    )
-    ''')
-    
-    # Tabulka equity
-    cursor.execute('''
-    CREATE TABLE IF NOT EXISTS equity (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        timestamp DATETIME,
-        equity_value REAL
-    )
-    ''')
-    
-    # Tabulka pro aktivní pozice
-    cursor.execute('''
-    CREATE TABLE IF NOT EXISTS active_positions (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        symbol TEXT,
-        direction TEXT,
-        amount REAL,
-        entry_price REAL,
-        stop_loss REAL,
-        take_profit REAL,
-        timestamp DATETIME,
-        market_type TEXT
-    )
-    ''')
+    )''')
     
     conn.commit()
     conn.close()
 
-# Inicializace databáze
 init_database()
 
 # Načtení konfigurace
@@ -137,99 +109,58 @@ def load_config():
 
 config = load_config()
 exchange = BinanceConnector(config)
+available_pairs = exchange.get_market_pairs()
 
-# Dostupné páry pro obchodování
-try:
-    available_pairs = exchange.get_market_pairs()
-except Exception as e:
-    logger.error(f"Chyba při získávání párů: {str(e)}")
-    available_pairs = ['BNB/USDT', 'BTC/USDT', 'ETH/USDT', 'SOL/USDT', 'XRP/USDT', 'ADA/USDT', 'DOGE/USDT']
-
-# Inicializace dashboardu
+# Inicializace Dash aplikace
 app = dash.Dash(
-    __name__, 
+    __name__,
     server=server,
     suppress_callback_exceptions=True,
-    external_stylesheets=[dbc.themes.DARKLY]
+    external_stylesheets=[dbc.themes.DARKLY],
+    title="Crypto Trading Bot Pro"
 )
-app.title = "Crypto Trading Bot Pro"
 
-# Definice přihlašovací stránky
+# Přihlašovací layout
 login_layout = html.Div([
     html.Div([
         html.Div([
             html.H1("Smart Trade Dashboard Pro", className="login-header"),
             html.H2("Přihlášení", className="login-subtitle"),
-            
-            html.Div([
-                html.Label("Uživatelské jméno", className="login-label"),
-                dcc.Input(
-                    id='username-input',
-                    type='text',
-                    placeholder='Zadejte uživatelské jméno',
-                    className="login-input"
-                ),
-                
-                html.Label("Heslo", className="login-label"),
-                dcc.Input(
-                    id='password-input',
-                    type='password',
-                    placeholder='Zadejte heslo',
-                    className="login-input"
-                ),
-                
-                html.Button('Přihlásit se', id='login-button', className="login-button"),
-                
-                html.Div(id='login-error', className="login-error")
-            ], className="login-form")
+            dcc.Input(id='username-input', type='text', placeholder='Uživatelské jméno', className="login-input"),
+            dcc.Input(id='password-input', type='password', placeholder='Heslo', className="login-input"),
+            html.Button('Přihlásit se', id='login-button', className="login-button"),
+            html.Div(id='login-error', className="login-error")
         ], className="login-container")
     ], className="login-page")
 ])
 
-# Hlavní layout dashboardu
+# Hlavní layout
 app_layout = html.Div([
     dcc.Location(id='url', refresh=False),
     dcc.Store(id='session-data'),
     dcc.Interval(id='update-interval', interval=5*1000),
-    dcc.Interval(id='slow-update-interval', interval=30*1000),
     
-    # Navigační lišta
     html.Div([
         html.Div([
-            html.Div([
-                html.H3("Smart Trade Dashboard Pro", className="nav-title"),
-            ], className="nav-title-container"),
-            
-            html.Div([
-                html.Div(id='user-info', className="user-info"),
-                html.Button('Odhlásit se', id='logout-button', className="logout-button"),
-            ], className="nav-user-container"),
+            html.H3("Smart Trade Dashboard Pro", className="nav-title"),
+            html.Div(id='user-info', className="user-info"),
+            html.Button('Odhlásit se', id='logout-button', className="logout-button")
         ], className="navbar-content")
     ], className="navbar"),
     
-    # Hlavní obsah
     html.Div([
-        html.Div([
-            html.H1("💰 Smart Trade Dashboard Pro", className="header"),
-            html.H2("🤖 Created TGM", className="header"),
-            
-            # Záložky pro navigaci
-            dcc.Tabs(id='main-tabs', value='dashboard', className='tab-container', children=[
-                dcc.Tab(label='Dashboard', value='dashboard', className='tab', selected_className='tab--selected'),
-                dcc.Tab(label='Multi-Chart', value='multi-chart', className='tab', selected_className='tab--selected'),
-                dcc.Tab(label='Performance', value='performance', className='tab', selected_className='tab--selected'),
-                dcc.Tab(label='Settings', value='settings', className='tab', selected_className='tab--selected'),
-                dcc.Tab(label='Logs', value='logs', className='tab', selected_className='tab--selected'),
-            ]),
-            
-            # Obsah záložek
-            html.Div(id='tabs-content', className='tab-content'),
-            
-        ], className="main-container")
-    ], className="app-container")
+        dcc.Tabs(id='main-tabs', value='dashboard', children=[
+            dcc.Tab(label='Dashboard', value='dashboard'),
+            dcc.Tab(label='Multi-Chart', value='multi-chart'),
+            dcc.Tab(label='Performance', value='performance'),
+            dcc.Tab(label='Settings', value='settings'),
+            dcc.Tab(label='Logs', value='logs'),
+        ]),
+        html.Div(id='tabs-content')
+    ], className="main-container")
 ])
 
-# Dynamické nastavení rozvržení aplikace podle přihlášení
+# Dynamický routing
 app.layout = html.Div([
     dcc.Location(id='url', refresh=False),
     html.Div(id='page-content')
@@ -242,13 +173,9 @@ app.layout = html.Div([
 def display_page(pathname):
     if pathname == '/login':
         return login_layout
-    elif pathname == '/logout':
-        logout_user()
-        return login_layout
     elif current_user.is_authenticated:
         return app_layout
-    else:
-        return login_layout
+    return login_layout
 
 # Callback pro přihlášení
 @app.callback(
@@ -258,19 +185,14 @@ def display_page(pathname):
     [State('username-input', 'value'),
      State('password-input', 'value')]
 )
-def login_callback(n_clicks, username, password):
-    if n_clicks is None:
-        return "", dash.no_update
-    
-    if not username or not password:
-        return "Zadejte uživatelské jméno a heslo", dash.no_update
-    
-    if username in users_db and check_password_hash(users_db[username]['password'], password):
-        user = User(username, username, users_db[username]['role'])
-        login_user(user)
-        return "", "/"
-    
-    return "Nesprávné uživatelské jméno nebo heslo", dash.no_update
+def login_user_callback(n_clicks, username, password):
+    if n_clicks and username and password:
+        if username in users_db and check_password_hash(users_db[username]['password'], password):
+            user = User(username, username, users_db[username]['role'])
+            login_user(user)
+            return "", "/"
+        return "Neplatné přihlašovací údaje", dash.no_update
+    return "", dash.no_update
 
 # Callback pro odhlášení
 @app.callback(
@@ -998,8 +920,7 @@ def get_equity_data(days=7):
 )
 def update_dashboard(_, timeframe, asset, market_type):
     try:
-        # Získání OHLCV dat
-        raw_data = exchange.get_real_time_data(symbol=asset, timeframe=timeframe, market_type=market_type)
+
         
         # Zpracování pro grafy
         df = pd.DataFrame(raw_data, columns=['timestamp', 'open', 'high', 'low', 'close', 'volume'])
@@ -1968,6 +1889,37 @@ def add_user(n_clicks, username, password, role):
     }
     
     return f"Uživatel {username} byl úspěšně přidán s rolí {role}"
+
+# ui/web_app.py (část s AI informacemi)
+def create_ai_metrics():
+    return html.Div([
+        html.H3("AI Engine Metrics", className="ai-header"),
+        dcc.Graph(id='ai-performance-chart'),
+        html.Div([
+            html.Div([
+                html.Span("Current Strategy: "),
+                html.Span(id='current-strategy', className='ai-value')
+            ], className='ai-metric'),
+            html.Div([
+                html.Span("Model Accuracy: "),
+                html.Span(id='model-accuracy', className='ai-value')
+            ], className='ai-metric'),
+            html.Div([
+                html.Span("Prediction Confidence: "),
+                html.Span(id='prediction-confidence', className='ai-value')
+            ], className='ai-metric'),
+            dcc.Markdown('''
+                **Matematický model:**
+                ```
+                P(y=1|x) = \frac{1}{1 + e^{-(w^T x + b)}}
+                ```
+                **Feature Engineering:**
+                - Normalizovaný OHLC
+                - Technické indikátory (RSI, MACD)
+                - Fourierova transformace
+            ''', className='ai-formulas')
+        ], className='ai-metrics-container')
+    ], className="ai-panel")
 
 # Spuštění serveru
 if __name__ == '__main__':

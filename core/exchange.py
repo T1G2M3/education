@@ -1,11 +1,8 @@
 # core/exchange.py
 import ccxt
-import time
-import pandas as pd
-import numpy as np
 import logging
 import sqlite3
-from decimal import Decimal
+import pandas as pd
 from datetime import datetime
 from decouple import config as env_config
 
@@ -14,52 +11,32 @@ class BinanceConnector:
         self.yaml_config = yaml_config
         self.mode = yaml_config.get('mode', 'dry')
         self.base_currency = yaml_config.get('base_currency', 'BNB')
-        self.market_type = yaml_config.get('market_type', 'spot')
+        self.market_type = yaml_config.get('market_type', 'spot')  # Přidáno
         self.logger = logging.getLogger(__name__)
         
-        # Inicializace API klienta
         try:
             self.client = ccxt.binance({
                 'apiKey': env_config('BINANCE_API_KEY', default=''),
                 'secret': env_config('BINANCE_API_SECRET', default=''),
                 'enableRateLimit': True,
-                'options': {
-                    'defaultType': self.market_type,
-                    'adjustForTimeDifference': True
-                },
+                'options': {'defaultType': self.market_type},  # Upraveno
                 'timeout': 30000
             })
             
             if self.mode == 'dry':
                 self.client.set_sandbox_mode(True)
-                self.virtual_balance = float(yaml_config.get('virtual_balance', 1000.0))
+                self.virtual_balance = 10000.0
                 
             self._init_database()
-            self.available_pairs = self._get_available_pairs()
             
         except Exception as e:
-            self.logger.error(f"Chyba při inicializaci: {str(e)}")
+            self.logger.error(f"Inicializační chyba: {str(e)}")
             raise
 
     def _init_database(self):
-        """Inicializace databáze pro ukládání obchodních dat"""
+        """Kompletní inicializace databáze"""
         conn = sqlite3.connect('data/trading_history.db')
         cursor = conn.cursor()
-        
-        # Tabulka pro aktivní pozice
-        cursor.execute('''
-        CREATE TABLE IF NOT EXISTS active_positions (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            symbol TEXT,
-            direction TEXT,
-            amount REAL,
-            entry_price REAL,
-            stop_loss REAL,
-            take_profit REAL,
-            timestamp DATETIME,
-            market_type TEXT
-        )
-        ''')
         
         # Tabulka pro obchody
         cursor.execute('''
@@ -73,56 +50,57 @@ class BinanceConnector:
             exit_price REAL,
             profit REAL,
             status TEXT,
-            market_type TEXT
+            market_type TEXT DEFAULT 'spot'
         )
         ''')
         
-        # Tabulka pro nastavení
+        # Tabulka pro rozhodnutí
         cursor.execute('''
-        CREATE TABLE IF NOT EXISTS bot_config (
-            id INTEGER PRIMARY KEY,
-            key TEXT UNIQUE,
-            value TEXT
+        CREATE TABLE IF NOT EXISTS decisions (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            timestamp DATETIME,
+            symbol TEXT,
+            signal TEXT,
+            confidence REAL,
+            action_taken TEXT,
+            market_type TEXT DEFAULT 'spot'
+        )
+        ''')
+        
+        # Tabulka pro predikce
+        cursor.execute('''
+        CREATE TABLE IF NOT EXISTS model_predictions (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            timestamp DATETIME,
+            symbol TEXT,
+            prediction REAL,
+            confidence REAL,
+            signal TEXT
         )
         ''')
         
         conn.commit()
         conn.close()
 
-    def _get_available_pairs(self):
-        """Získá dostupné obchodní páry"""
+    def get_market_pairs(self):
+        """Získání dostupných obchodních párů"""
         try:
-            if self.mode == 'dry':
-                return [
-                    'BNB/USDT', 'BTC/USDT', 'ETH/USDT', 'SOL/USDT', 'XRP/USDT',
-                    'ADA/USDT', 'AVAX/USDT', 'DOT/USDT', 'MATIC/USDT', 'DOGE/USDT'
-                ]
-                
-            markets = self.client.load_markets()
-            return [
-                symbol for symbol in markets 
-                if symbol.endswith('/USDT') 
-                and markets[symbol]['active']
-            ][:20]
-            
+            return ['BNB/USDT', 'BTC/USDT', 'ETH/USDT', 'SOL/USDT', 'XRP/USDT', 'ADA/USDT', 'DOGE/USDT']
         except Exception as e:
-            self.logger.error(f"Chyba při získávání párů: {str(e)}")
-            return ['BNB/USDT', 'BTC/USDT', 'ETH/USDT']
+            self.logger.error(f"Chyba: {str(e)}")
+            return []
 
-    def get_real_time_data(self, symbol=None, timeframe=None, limit=500, market_type=None):
-        """Získá OHLCV data pro zadaný symbol a timeframe"""
+    def get_real_time_data(self, symbol, timeframe='15m', limit=100, market_type=None):
+        """Získání OHLCV dat"""
         try:
             market_type = market_type or self.market_type
             self.client.options['defaultType'] = market_type
             
-            symbol = symbol or f"{self.base_currency}/USDT"
-            timeframe = timeframe or self.yaml_config['strategies']['params'].get('timeframe', '15m')
-            
             return self.client.fetch_ohlcv(symbol, timeframe, limit=limit)
-            
         except Exception as e:
-            self.logger.error(f"Chyba při získávání dat: {str(e)}")
+            self.logger.error(f"Chyba: {str(e)}")
             return []
+
 
     def execute_trade(self, decision, amount, asset_pair=None, order_type='market', sl=None, tp=None, market_type=None):
         """Provede obchod na zadaném trhu"""

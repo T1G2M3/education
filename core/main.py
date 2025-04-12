@@ -2,126 +2,183 @@
 import time
 import yaml
 import logging
+import sqlite3
+import pandas as pd
+from datetime import datetime
 from core.exchange import BinanceConnector
 from core.strategy_manager import StrategyManager
 from core.risk_management import AdvancedRiskManager
 
-def setup_logging():
-    logger = logging.getLogger()
-    logger.setLevel(logging.INFO)
-    
-    formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-    
-    file_handler = logging.FileHandler('logs/trading_bot.log', encoding='utf-8')
-    file_handler.setFormatter(formatter)
-
 class TradingBot:
     def __init__(self):
-        try:
-            self.config = self.load_config()
-            self.exchange = BinanceConnector(self.config) 
-            self.strategy = StrategyManager(self.config).get_strategy()
-            self.risk_manager = AdvancedRiskManager(self.config, self.exchange)
-            self.running = True
-            self.logger = logging.getLogger(__name__)
-        except Exception as e:
-            logging.critical(f"Chyba při inicializaci: {str(e)}")
-            raise
+        self._load_config()
+        self._init_components()
+        self.running = True
+        self.logger = logging.getLogger(self.__class__.__name__)
+        self._init_database()
 
+    def _load_config(self):
+        """Načte konfiguraci s explicitním UTF-8 kódováním"""
+        with open("config/config.yaml", "r", encoding='utf-8') as f:
+            self.config = yaml.safe_load(f)
+        
+        self.base_currency = self.config['base_currency']
+        self.market_type = self.config['market_type']
 
-    def load_config(self):
-        with open("config/config.yaml", encoding='utf-8') as f:
-            return yaml.safe_load(f)
+    def _init_components(self):
+        """Inicializuje hlavní komponenty"""
+        self.exchange = BinanceConnector(self.config)
+        self.strategy_manager = StrategyManager(self.config)
+        self.risk_manager = AdvancedRiskManager(self.config, self.exchange)
+        self.strategy = self.strategy_manager.get_strategy()
+
+    def _init_database(self):
+        """Vytvoří chybějící databázové tabulky"""
+        with sqlite3.connect('data/trading_history.db') as conn:
+            cursor = conn.cursor()
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS model_metrics (
+                    id INTEGER PRIMARY KEY,
+                    timestamp DATETIME,
+                    accuracy REAL,
+                    precision REAL,
+                    recall REAL,
+                    f1_score REAL
+                )
+            ''')
+            conn.commit()
 
     def run(self):
-        self.logger.info("🚀 Spouštím trading bot...")
+        """Hlavní smyčka obchodního bota"""
+        self.logger.info("🚀 Initializing QuantumTrader AI Engine...")
+        symbol = f"{self.base_currency}/USDT"
+        
         while self.running:
             try:
-                # Získání aktuálních dat
-                current_price = self.exchange.get_current_price()
-                portfolio_value = self.exchange.get_portfolio_value()
-                
-                data = self.exchange.get_real_time_data(
-                    timeframe=self.config['strategies']['params']['timeframe']
+                # 1. Získání dat
+                ohlcv_data = self.exchange.get_real_time_data(
+                    symbol=symbol,
+                    timeframe=self.config['strategies']['ml_strategy']['timeframe']
                 )
                 
-                # Analýza a rozhodování
-                decision = self.strategy.analyze(data)
+                # 2. AI analýza
+                analysis_report = self.strategy.analyze(ohlcv_data)
                 
-                # Risk management
-                decision = self.risk_manager.evaluate_risk(
-                    decision, 
-                    current_price,
-                    {'value': portfolio_value}
+                # 3. Risk management
+                risk_assessment = self.risk_manager.evaluate(
+                    signal=analysis_report['signal'],
+                    confidence=analysis_report['confidence']
                 )
                 
-                # Provedení obchodu
-                if decision != 'HOLD':
-                    self.execute_trade(decision, current_price)
+                # 4. Provedení obchodu
+                if risk_assessment['approved']:
+                    self._execute_trade(
+                        signal=analysis_report['signal'],
+                        amount=risk_assessment['amount'],
+                        symbol=symbol
+                    )
+                
+                # 5. Aktualizace metrik
+                self._update_metrics(analysis_report)
                 
                 time.sleep(self.config['api_settings']['refresh_interval'])
                 
             except KeyboardInterrupt:
                 self.shutdown()
             except Exception as e:
-                self.logger.error(f"Kritická chyba: {str(e)}", exc_info=True)
+                self.logger.error(f"Critical path failure: {str(e)}", exc_info=True)
                 time.sleep(10)
 
-    def execute_trade(self, decision, current_price):
-        amount = self.config['risk_management']['max_trade_size']
-        symbol = f"{self.config['base_currency']}/USDT"
-        
+    def _execute_trade(self, signal, amount, symbol):
+        """Provádí obchod s rozšířeným loggingem"""
         try:
             if self.config['mode'] == 'dry':
-                self.logger.info(f"[DRY RUN] {decision} {amount} {symbol}")
-                return True
-                
-            if decision == "BUY":
-                self.exchange.client.create_market_buy_order(symbol, amount)
-            elif decision == "SELL":
-                self.exchange.client.create_market_sell_order(symbol, amount)
-                
-            self.logger.info(f"Úspěšný obchod: {decision} {amount} {symbol}")
-            return True
+                self.logger.info(f"🔮 [SIMULATION] {signal} {amount} {symbol}")
+                return
+
+            order_result = self.exchange.execute_order(
+                symbol=symbol,
+                side=signal.lower(),
+                amount=amount,
+                order_type='MARKET'
+            )
             
+            self.logger.info(f"💰 Order executed: {order_result}")
+            self._log_trade(order_result)
+
         except Exception as e:
-            self.logger.error(f"Chyba obchodu: {str(e)}")
-            return False
+            self.logger.error(f"💥 Trade execution failed: {str(e)}")
+
+    def _update_metrics(self, analysis):
+        """Ukládá metriky AI modelu"""
+        with sqlite3.connect('data/trading_history.db') as conn:
+            conn.execute('''
+                INSERT INTO model_metrics 
+                (timestamp, accuracy, precision, recall, f1_score)
+                VALUES (?, ?, ?, ?, ?)
+            ''', (
+                datetime.now(),
+                analysis.get('accuracy', 0),
+                analysis.get('precision', 0),
+                analysis.get('recall', 0),
+                analysis.get('f1_score', 0)
+            ))
 
     def shutdown(self):
+        """Elegantní vypnutí systému"""
         self.running = False
-        self.logger.info("🛑 Bezpečné vypínání bota...")
-        
-    def setup_logging():
-        logger = logging.getLogger()
-        logger.setLevel(logging.INFO)
-        
-        formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-        
-        file_handler = logging.FileHandler('logs/trading_bot.log', encoding='utf-8')
-        file_handler.setFormatter(formatter)       
+        self.logger.info("🛑 QuantumTrader shutting down...")
+        self.exchange.close()
+        self._cleanup_resources()
 
+def setup_logging():
+    """Pokročilá konfigurace logování"""
+    logger = logging.getLogger()
+    logger.setLevel(logging.INFO)
 
-        
-        # Console handler s nahrazením problematických znaků
-        class SafeStreamHandler(logging.StreamHandler):
-            def emit(self, record):
-                try:
-                    msg = self.format(record)
-                    msg = msg.encode('utf-8', errors='replace').decode('utf-8')
-                    self.stream.write(msg + self.terminator)
-                    self.flush()
-                except Exception:
-                    self.handleError(record)
-                    
-        console_handler = SafeStreamHandler()
+    formatter = logging.Formatter(
+        '[%(asctime)s] %(levelname)s - %(module)s - %(message)s',
+        datefmt='%Y-%m-%d %H:%M:%S'
+    )
+    
+    # File handler s rotací logů
+    from logging.handlers import RotatingFileHandler
+    file_handler = RotatingFileHandler(
+        'logs/quantum_trader.log',
+        maxBytes=10*1024*1024,
+        backupCount=5,
+        encoding='utf-8'
+    )
+    file_handler.setFormatter(formatter)
+    
+    # Konzolový handler s barevnými výpisy
+    try:
+        from colorlog import ColoredFormatter
+        color_formatter = ColoredFormatter(
+            "%(log_color)s[%(asctime)s] %(levelname)s - %(module)s - %(message)s",
+            datefmt='%Y-%m-%d %H:%M:%S',
+            reset=True,
+            log_colors={
+                'DEBUG': 'cyan',
+                'INFO': 'green',
+                'WARNING': 'yellow',
+                'ERROR': 'red',
+                'CRITICAL': 'red,bg_white',
+            }
+        )
+        console_handler = logging.StreamHandler()
+        console_handler.setFormatter(color_formatter)
+    except ImportError:
+        console_handler = logging.StreamHandler()
         console_handler.setFormatter(formatter)
-        
-        logger.addHandler(file_handler)
-        logger.addHandler(console_handler)
-
+    
+    logger.addHandler(file_handler)
+    logger.addHandler(console_handler)
 
 if __name__ == "__main__":
     setup_logging()
-    bot = TradingBot()
-    bot.run()
+    try:
+        bot = TradingBot()
+        bot.run()
+    except Exception as e:
+        logging.critical(f"🔥 Critical initialization failure: {str(e)}", exc_info=True)
