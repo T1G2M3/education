@@ -8,6 +8,8 @@ import ccxt
 import logging
 import sys
 import yaml
+from datetime import datetime
+trade_date = datetime.now().isoformat()
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger('init_database')
@@ -61,7 +63,8 @@ def init_database():
     CREATE TABLE IF NOT EXISTS equity (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         timestamp DATETIME,
-        equity_value REAL
+        equity_value REAL,
+        market_type TEXT DEFAULT 'spot'
     )
     ''')
     
@@ -150,14 +153,14 @@ def import_exchange_data():
             initial_value *= (1 + change)
             
             cursor.execute(
-                "INSERT INTO equity (timestamp, equity_value) VALUES (?, ?)",
-                (date, initial_value)
+                "INSERT INTO equity (timestamp, equity_value, market_type) VALUES (?, ?, ?)",
+                (date, initial_value, 'spot')
             )
         
         # Záznam aktuální hodnoty
         cursor.execute(
-            "INSERT INTO equity (timestamp, equity_value) VALUES (?, ?)",
-            (now, initial_value)
+            "INSERT INTO equity (timestamp, equity_value, market_type) VALUES (?, ?, ?)",
+            (now, initial_value, 'spot')
         )
         
         # Vygenerování ukázkových obchodů
@@ -196,6 +199,8 @@ def import_exchange_data():
     except Exception as e:
         logger.error(f"Chyba při importu dat: {str(e)}")
         sys.exit(1)
+
+
 
 if __name__ == "__main__":
     init_database()

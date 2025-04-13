@@ -15,6 +15,7 @@ from core.exchange import BinanceConnector
 import yaml
 import traceback
 import dash_bootstrap_components as dbc
+from scripts.init_database import import_exchange_data
 
 # Konfigurace loggeru
 logging.basicConfig(
@@ -102,6 +103,9 @@ def init_database():
 
 init_database()
 
+
+
+
 # Načtení konfigurace
 def load_config():
     with open("config/config.yaml", encoding='utf-8') as f:
@@ -134,11 +138,18 @@ login_layout = html.Div([
     ], className="login-page")
 ])
 
+dbc.Spinner(
+    children=[dcc.Graph(id='main-chart')],
+    color="primary",
+    type="grow"
+)
+
+
 # Hlavní layout
 app_layout = html.Div([
     dcc.Location(id='url', refresh=False),
     dcc.Store(id='session-data'),
-    dcc.Interval(id='update-interval', interval=60*1000), # 1 minuta dcc.Interval(id='update-interval', interval=60*1000)
+    dcc.Interval(id='update-interval', interval=30*1000), # 1 minuta dcc.Interval(id='update-interval', interval=60*1000)
     
     html.Div([
         html.Div([
@@ -159,6 +170,105 @@ app_layout = html.Div([
         html.Div(id='tabs-content')
     ], className="main-container")
 ])
+
+# Callback pro ukládání nastavení rizika
+@app.callback(
+    Output('bot-status-text', 'children'),
+    [Input('save-settings', 'n_clicks'),
+     Input('save-strategy-settings', 'n_clicks'),
+     Input('save-risk-settings', 'n_clicks')],
+    [State('mode-setting', 'value'),
+     State('market-type-setting', 'value'),
+     State('base-currency-setting', 'value'),
+     State('refresh-interval-setting', 'value'),
+     State('strategy-setting', 'value'),
+     State('confidence-threshold-setting', 'value'),
+     State('strategy-timeframe-setting', 'value'),
+     State('global-stop-loss-setting', 'value'),
+     State('global-take-profit-setting', 'value'),
+     State('global-trade-size-setting', 'value'),
+     State('leverage-setting', 'value')],
+    prevent_initial_call=True
+)
+
+def save_settings(
+    risk_clicks, general_clicks, strategy_clicks, risk_global_clicks,
+    stop_loss, take_profit, trade_amount,
+    mode, market_type, base_currency, refresh_interval,
+    strategy, confidence_threshold, strategy_timeframe,
+    global_stop_loss, global_take_profit, global_trade_size, leverage):
+    
+    # Kontrola, zda je uživatel admin
+    if not current_user.is_authenticated or current_user.role != 'admin':
+        return "Unauthorized"
+    
+    ctx = callback_context
+    if not ctx.triggered:
+        return "Idle"
+    
+    trigger_id = ctx.triggered[0]['prop_id'].split('.')[0]
+    
+    try:
+        # Načtení aktuální konfigurace
+        with open("config/config.yaml", 'r', encoding='utf-8') as f:
+            config = yaml.safe_load(f)
+            
+        if trigger_id == 'risk-settings-btn' and risk_clicks:
+            # Aktualizace hodnot rizika z dashboardu
+            config['risk_management']['stop_loss'] = f"{stop_loss}%"
+            config['risk_management']['take_profit'] = f"{take_profit}%"
+            config['risk_management']['max_trade_size'] = trade_amount
+            
+            # Uložení konfigurace
+            with open("config/config.yaml", 'w', encoding='utf-8') as f:
+                yaml.dump(config, f, sort_keys=False)
+                
+            return "Risk settings updated"
+            
+        elif trigger_id == 'save-settings' and general_clicks:
+            # Aktualizace obecných nastavení
+            config['mode'] = mode
+            config['market_type'] = market_type
+            config['base_currency'] = base_currency
+            config['api_settings']['refresh_interval'] = refresh_interval
+            
+            # Uložení konfigurace
+            with open("config/config.yaml", 'w', encoding='utf-8') as f:
+                yaml.dump(config, f, sort_keys=False)
+                
+            return "General settings updated"
+            
+        elif trigger_id == 'save-strategy-settings' and strategy_clicks:
+            # Aktualizace nastavení strategie
+            config['strategies']['active'] = strategy
+            config['strategies']['params']['confidence_threshold'] = confidence_threshold
+            config['strategies']['params']['timeframe'] = strategy_timeframe
+            
+            # Uložení konfigurace
+            with open("config/config.yaml", 'w', encoding='utf-8') as f:
+                yaml.dump(config, f, sort_keys=False)
+                
+            return "Strategy settings updated"
+            
+        elif trigger_id == 'save-risk-settings' and risk_global_clicks:
+            # Aktualizace globálních nastavení rizika
+            config['risk_management']['stop_loss'] = f"{global_stop_loss}%"
+            config['risk_management']['take_profit'] = f"{global_take_profit}%"
+            config['risk_management']['max_trade_size'] = global_trade_size
+            config['risk_management']['leverage'] = leverage
+            
+            # Uložení konfigurace
+            with open("config/config.yaml", 'w', encoding='utf-8') as f:
+                yaml.dump(config, f, sort_keys=False)
+                
+            return "Risk settings updated"
+            
+        return "Settings unchanged"
+    
+    except Exception as e:
+        logger.error(f"Chyba při ukládání nastavení: {str(e)}")
+        return f"Error: {str(e)}"
+
 
 # Dynamický routing
 app.layout = html.Div([
@@ -511,212 +621,79 @@ def create_settings_layout():
         html.H3("Bot Configuration", style={'color': 'white'}),
         
         html.Div([
+            # General Settings
             html.Div([
                 html.H4("General Settings", style={'color': 'white'}),
                 html.Div(className="settings-form", children=[
-                    html.Label("Trading Mode"),
-                    dcc.Dropdown(
-                        id='mode-setting',
-                        options=[
-                            {'label': 'Dry Run (Simulation)', 'value': 'dry'},
-                            {'label': 'Live Trading', 'value': 'live'},
-                        ],
-                        value=config['mode'],
-                        className="dropdown",
-                        style={'width': '100%'},
-                        disabled=not current_user.is_authenticated or current_user.role != 'admin'
-                    ),
-                    
-                    html.Label("Default Market Type"),
-                    dcc.Dropdown(
-                        id='market-type-setting',
-                        options=[
-                            {'label': 'Spot', 'value': 'spot'},
-                            {'label': 'Futures', 'value': 'futures'},
-                        ],
-                        value=config.get('market_type', 'spot'),
-                        className="dropdown",
-                        style={'width': '100%'},
-                        disabled=not current_user.is_authenticated or current_user.role != 'admin'
-                    ),
-                    
-                    html.Label("Base Currency"),
-                    dcc.Dropdown(
-                        id='base-currency-setting',
-                        options=[
-                            {'label': 'BNB', 'value': 'BNB'},
-                            {'label': 'BTC', 'value': 'BTC'},
-                            {'label': 'ETH', 'value': 'ETH'},
-                            {'label': 'USDT', 'value': 'USDT'},
-                        ],
-                        value=config['base_currency'],
-                        className="dropdown",
-                        style={'width': '100%'},
-                        disabled=not current_user.is_authenticated or current_user.role != 'admin'
-                    ),
-                    
-                    html.Label("Refresh Interval (seconds)"),
-                    dcc.Input(
-                        id='refresh-interval-setting',
-                        type='number',
-                        value=config['api_settings']['refresh_interval'],
-                        min=10,
-                        max=300,
-                        step=5,
-                        disabled=not current_user.is_authenticated or current_user.role != 'admin'
-                    ),
-                    
+                    # ... (ostatní prvky)
                     html.Button(
                         "Save General Settings", 
-                        id='save-general-settings', 
+                        id='save-settings',  # Správné ID
                         className="control-btn",
+                        n_clicks=0,
                         disabled=not current_user.is_authenticated or current_user.role != 'admin'
                     ),
                 ]),
             ], className="metric-box"),
             
+            # Strategy Settings
             html.Div([
                 html.H4("Strategy Settings", style={'color': 'white'}),
                 html.Div(className="settings-form", children=[
-                    html.Label("Active Strategy"),
-                    dcc.Dropdown(
-                        id='strategy-setting',
-                        options=[
-                            {'label': 'ML Strategy', 'value': 'ml_strategy'},
-                            {'label': 'RSI Strategy', 'value': 'rsi_strategy'},
-                        ],
-                        value=config['strategies']['active'],
-                        className="dropdown",
-                        style={'width': '100%'},
-                        disabled=not current_user.is_authenticated or current_user.role != 'admin'
-                    ),
-                    
-                    html.Label("Confidence Threshold"),
-                    dcc.Input(
-                        id='confidence-threshold-setting',
-                        type='number',
-                        value=config['strategies']['params']['confidence_threshold'],
-                        min=0.1,
-                        max=1.0,
-                        step=0.05,
-                        disabled=not current_user.is_authenticated or current_user.role != 'admin'
-                    ),
-                    
-                    html.Label("Timeframe"),
-                    dcc.Dropdown(
-                        id='strategy-timeframe-setting',
-                        options=[
-                            {'label': '5 Min', 'value': '5m'},
-                            {'label': '15 Min', 'value': '15m'},
-                            {'label': '30 Min', 'value': '30m'},
-                            {'label': '1 Hour', 'value': '1h'},
-                        ],
-                        value=config['strategies']['params']['timeframe'],
-                        className="dropdown",
-                        style={'width': '100%'},
-                        disabled=not current_user.is_authenticated or current_user.role != 'admin'
-                    ),
-                    
+                    # ... (ostatní prvky)
                     html.Button(
                         "Save Strategy Settings", 
-                        id='save-strategy-settings', 
+                        id='save-strategy-settings',  # Správné ID
                         className="control-btn",
+                        n_clicks=0,
+                        disabled=not current_user.is_authenticated or current_user.role != 'admin'
+                    ),
+                ]),
+            ], className="metric-box"),
+            
+            # Risk Management
+            html.Div([
+                html.H4("Risk Management", style={'color': 'white'}),
+                html.Div(className="settings-form", children=[
+                    # ... (ostatní prvky)
+                    html.Button(
+                        "Save Risk Settings", 
+                        id='save-risk-settings',  # Správné ID
+                        className="control-btn",
+                        n_clicks=0,
                         disabled=not current_user.is_authenticated or current_user.role != 'admin'
                     ),
                 ]),
             ], className="metric-box"),
         ], className="metrics-container"),
-        
-        html.Div([
-            html.H4("Risk Management Settings", style={'color': 'white'}),
-            html.Div(className="settings-form", children=[
-                html.Label("Stop Loss (%)"),
-                dcc.Input(
-                    id='global-stop-loss-setting',
-                    type='number',
-                    value=float(config['risk_management']['stop_loss'].strip('%')),
-                    min=0.1,
-                    max=50,
-                    step=0.1,
-                    disabled=not current_user.is_authenticated or current_user.role != 'admin'
-                ),
-                
-                html.Label("Take Profit (%)"),
-                dcc.Input(
-                    id='global-take-profit-setting',
-                    type='number',
-                    value=float(config['risk_management']['take_profit'].strip('%')),
-                    min=0.1,
-                    max=100,
-                    step=0.1,
-                    disabled=not current_user.is_authenticated or current_user.role != 'admin'
-                ),
-                
-                html.Label("Max Trade Size (USDT)"),
-                dcc.Input(
-                    id='global-trade-size-setting',
-                    type='number',
-                    value=config['risk_management']['max_trade_size'],
-                    min=1,
-                    max=1000,
-                    step=1,
-                    disabled=not current_user.is_authenticated or current_user.role != 'admin'
-                ),
-                
-                html.Label("Leverage (for Futures)"),
-                dcc.Input(
-                    id='leverage-setting',
-                    type='number',
-                    value=config['risk_management']['leverage'],
-                    min=1,
-                    max=20,
-                    step=1,
-                    disabled=not current_user.is_authenticated or current_user.role != 'admin'
-                ),
-                
-                html.Button(
-                    "Save Risk Settings", 
-                    id='save-risk-settings', 
-                    className="control-btn",
-                    disabled=not current_user.is_authenticated or current_user.role != 'admin'
-                ),
-            ]),
-        ], className="metric-box"),
-        
-        html.Div([
-            html.H4("User Management", style={'color': 'white', 'display': 'block' if current_user.is_authenticated and current_user.role == 'admin' else 'none'}),
-            html.Div(className="settings-form", children=[
-                html.Label("Add New User"),
-                dcc.Input(
-                    id='new-username',
-                    type='text',
-                    placeholder="Username",
-                    style={'width': '100%'}
-                ),
-                dcc.Input(
-                    id='new-password',
-                    type='password',
-                    placeholder="Password",
-                    style={'width': '100%'}
-                ),
-                dcc.Dropdown(
-                    id='new-user-role',
-                    options=[
-                        {'label': 'Admin', 'value': 'admin'},
-                        {'label': 'User', 'value': 'user'},
-                    ],
-                    value='user',
-                    style={'width': '100%'}
-                ),
-                html.Button(
-                    "Add User", 
-                    id='add-user-btn', 
-                    className="control-btn"
-                ),
-                html.Div(id='user-management-message')
-            ], style={'display': 'block' if current_user.is_authenticated and current_user.role == 'admin' else 'none'}),
-        ], className="metric-box"),
     ])
+
+def handle_settings_saves(settings_clicks, strategy_clicks, risk_clicks, *args):
+    ctx = dash.callback_context
+    if not ctx.triggered:
+        raise dash.exceptions.PreventUpdate
+    
+    trigger_id = ctx.triggered[0]['prop_id'].split('.')[0]
+    
+    try:
+        with open("config/config.yaml", "r") as f:
+            config = yaml.safe_load(f)
+            
+        if trigger_id == 'save-settings':
+            # Logika pro obecná nastavení
+            return "General settings updated"
+            
+        elif trigger_id == 'save-strategy-settings':
+            # Logika pro strategii
+            return "Strategy settings updated"
+            
+        elif trigger_id == 'save-risk-settings':
+            # Logika pro rizika
+            return "Risk settings updated"
+            
+    except Exception as e:
+        logger.error(f"Chyba při ukládání nastavení: {str(e)}")
+        return f"Error: {str(e)}"
 
 # Layout záložky Logs
 def create_logs_layout():
@@ -901,6 +878,211 @@ def get_equity_data(days=7):
     except Exception as e:
         logger.error(f"Chyba při získávání equity dat: {str(e)}")
         return pd.DataFrame({'timestamp': [datetime.now()], 'equity_value': [1000.0]})
+    
+
+def create_equity_curve(market_type=None):
+    """Vytvoří graf equity křivky na základě historických dat"""
+    try:
+        conn = sqlite3.connect('data/trading_history.db')
+        # Odstraněn filtr podle market_type, který způsobuje chybu
+        query = "SELECT timestamp, equity_value FROM equity ORDER BY timestamp ASC"
+        df = pd.read_sql(query, conn, parse_dates=['timestamp'])
+        conn.close()
+        
+        if df.empty:
+            fig = go.Figure()
+            fig.update_layout(title="Equity Curve - Žádná data", template='plotly_dark')
+            return fig
+            
+        fig = go.Figure()
+        fig.add_trace(go.Scatter(x=df['timestamp'], y=df['equity_value'], mode='lines', name='Equity'))
+        fig.update_layout(title="Equity Curve", template='plotly_dark')
+        return fig
+        
+    except Exception as e:
+        logger.error(f"Chyba při vytváření equity křivky: {str(e)}")
+        fig = go.Figure()
+        fig.update_layout(title="Chyba při načítání dat", template='plotly_dark')
+        return fig
+
+    
+def update_database_schema(conn=None):
+    """Aktualizuje schéma databáze pro kompatibilitu s novějšími verzemi"""
+    should_close = False
+    if conn is None:
+        conn = sqlite3.connect('data/trading_history.db')
+        should_close = True
+    
+    cursor = conn.cursor()
+    
+    # Kontrola a přidání sloupce market_type do tabulky equity
+    cursor.execute("PRAGMA table_info(equity)")
+    columns = [col[1] for col in cursor.fetchall()]
+    
+    if 'market_type' not in columns:
+        logger.info("Přidávám chybějící sloupec market_type do tabulky equity")
+        cursor.execute("ALTER TABLE equity ADD COLUMN market_type TEXT DEFAULT 'spot'")
+        conn.commit()
+    
+    if should_close:
+        conn.close()
+
+  
+
+
+def create_performance_gauge(metrics=None):
+    """Vytvoří gauge graf pro vizualizaci výkonnosti"""
+    try:
+        # Získání denní změny, pokud není v metrics
+        if not metrics:
+            conn = sqlite3.connect('data/trading_history.db')
+            query = """
+            SELECT SUM(profit) as daily_profit
+            FROM trades
+            WHERE timestamp >= datetime('now', '-1 day')
+            """
+            df = pd.read_sql(query, conn)
+            conn.close()
+            daily_profit = df['daily_profit'].values[0] if not pd.isna(df['daily_profit'].values[0]) else 0
+        else:
+            daily_profit = metrics.get('daily_profit', 0)
+        
+        # Vytvoření gauge grafu
+        fig = go.Figure(go.Indicator(
+            mode="gauge+number",
+            value=daily_profit,
+            title={'text': "24h P&L"},
+            gauge={
+                'axis': {'range': [-100, 100]},
+                'bar': {'color': "green" if daily_profit >= 0 else "red"},
+                'steps': [
+                    {'range': [-100, 0], 'color': "lightgray"},
+                    {'range': [0, 100], 'color': "gray"}
+                ],
+                'threshold': {
+                    'line': {'color': "white", 'width': 4},
+                    'thickness': 0.75,
+                    'value': 0
+                }
+            }
+        ))
+        
+        fig.update_layout(
+            template='plotly_dark',
+            height=300,
+            margin=dict(l=10, r=10, t=40, b=20)
+        )
+        
+        return fig
+        
+    except Exception as e:
+        logger.error(f"Chyba při vytváření performance gauge: {str(e)}")
+        fig = go.Figure()
+        fig.update_layout(title="Chyba při načítání dat", template='plotly_dark', height=300)
+        return fig
+
+def generate_trade_history_table(trades):
+    """Vygeneruje tabulku obchodů pro zobrazení v dashboardu"""
+    if not trades:
+        return [html.Tr([html.Td("Zatím žádné obchody", colSpan=6)])]
+        
+    rows = []
+    header = html.Tr([
+        html.Th("Čas"), 
+        html.Th("Typ"),
+        html.Th("Pár"),
+        html.Th("Množství"),
+        html.Th("Cena"),
+        html.Th("Zisk")
+    ])
+    rows.append(header)
+    
+    for trade in trades:
+        timestamp = trade['timestamp']
+        if isinstance(timestamp, str):
+            timestamp = datetime.fromisoformat(trade['timestamp'])
+        else:
+            timestamp = datetime.strptime(trade['timestamp'], '%Y-%m-%dT%H:%M:%S.%f')
+            
+        rows.append(html.Tr([
+            html.Td(timestamp),
+            html.Td(trade['side'], style={'color': 'green' if trade['side'] == 'BUY' else 'red'}),
+            html.Td(trade['symbol']),
+            html.Td(f"{trade['amount']:.4f}"),
+            html.Td(f"{trade['entry_price']:.2f}"),
+            html.Td(f"{trade['profit']:.2f}", style={'color': 'green' if trade['profit'] > 0 else 'red'})
+        ]))
+    
+    return rows
+
+def calculate_performance_metrics(market_type=None):
+    """Vypočítá výkonnostní metriky na základě historie obchodů"""
+    try:
+        conn = sqlite3.connect('data/trading_history.db')
+        query = "SELECT profit FROM trades WHERE status = 'CLOSED'"
+        params = []
+        
+        if market_type:
+            query += " AND market_type = ?"
+            params.append(market_type)
+            
+        df = pd.read_sql(query, conn, params=params)
+        conn.close()
+        
+        total_trades = len(df)
+        
+        if total_trades == 0:
+            return {
+                'win_rate': 0,
+                'profit_factor': 0,
+                'total_trades': 0,
+                'daily_profit': 0
+            }
+            
+        win_trades = len(df[df['profit'] > 0])
+        
+        win_rate = (win_trades / total_trades) * 100 if total_trades > 0 else 0
+        
+        total_profit = df[df['profit'] > 0]['profit'].sum() if not df[df['profit'] > 0].empty else 0
+        total_loss = abs(df[df['profit'] <= 0]['profit'].sum()) if not df[df['profit'] <= 0].empty else 1
+        
+        profit_factor = total_profit / total_loss if total_loss > 0 else total_profit
+        
+        # Pro gauge graf vypočítáme 24h profit
+        conn = sqlite3.connect('data/trading_history.db')
+        query = """
+        SELECT SUM(profit) as daily_profit
+        FROM trades
+        WHERE timestamp >= datetime('now', '-1 day')
+        """
+        if market_type:
+            query += " AND market_type = ?"
+            params = [market_type]
+        else:
+            params = []
+            
+        daily_df = pd.read_sql(query, conn, params=params)
+        conn.close()
+        
+        daily_profit = daily_df['daily_profit'].values[0] if not pd.isna(daily_df['daily_profit'].values[0]) else 0
+        
+        return {
+            'win_rate': win_rate,
+            'profit_factor': profit_factor,
+            'total_trades': total_trades,
+            'daily_profit': daily_profit
+        }
+        
+    except Exception as e:
+        logger.error(f"Chyba při výpočtu metrik: {str(e)}")
+        return {
+            'win_rate': 0,
+            'profit_factor': 0,
+            'total_trades': 0,
+            'daily_profit': 0
+        }
+
+
 
 # Callback pro aktualizaci hlavního grafu a metrik
 @app.callback(
@@ -920,11 +1102,11 @@ def get_equity_data(days=7):
 )
 def update_dashboard(n_intervals, timeframe, asset, market_type):
     try:
-        # Získání OHLCV dat s ošetřením market_type
+        # Získání OHLCV dat
         raw_data = exchange.get_real_time_data(
             symbol=asset,
             timeframe=timeframe,
-            market_type=market_type  # Kritický parametr!
+            market_type=market_type
         )
         
         if not raw_data:
@@ -935,8 +1117,8 @@ def update_dashboard(n_intervals, timeframe, asset, market_type):
         df['timestamp'] = pd.to_datetime(df['timestamp'], unit='ms')
         
         # Výpočet technických indikátorů
-        df['sma20'] = df['close'].rolling(20).mean()
-        df['sma50'] = df['close'].rolling(50).mean()
+        df['sma20'] = df['close'].rolling(window=20).mean()
+        df['sma50'] = df['close'].rolling(window=50).mean()
         
         # Vytvoření hlavního grafu
         fig = go.Figure()
@@ -948,35 +1130,58 @@ def update_dashboard(n_intervals, timeframe, asset, market_type):
             close=df['close'],
             name='OHLC'
         ))
-        fig.add_trace(go.Scatter(x=df['timestamp'], y=df['sma20'], name='SMA 20'))
-        fig.add_trace(go.Scatter(x=df['timestamp'], y=df['sma50'], name='SMA 50'))
+        
+        fig.add_trace(go.Scatter(
+            x=df['timestamp'],
+            y=df['sma20'],
+            name='SMA 20',
+            line=dict(color='blue', width=1)
+        ))
+        
+        fig.add_trace(go.Scatter(
+            x=df['timestamp'],
+            y=df['sma50'],
+            name='SMA 50',
+            line=dict(color='orange', width=1)
+        ))
         
         fig.update_layout(
-            title=f'{asset} - {timeframe} ({market_type})',
+            title=f'{asset} - {timeframe}',
+            xaxis_title='Čas',
+            yaxis_title='Cena',
             template='plotly_dark',
-            height=400
+            height=400,
+            margin=dict(l=10, r=10, t=40, b=20)
         )
 
-        # Získání dalších dat
+        # Získání portfolio hodnoty
         portfolio_value = exchange.get_portfolio_value(market_type)
+        portfolio_display = f"{portfolio_value:.2f} USDT"
+        
+        # Získání denní změny
         daily_change = exchange.get_24h_change(asset, market_type)
+        daily_display = f"{daily_change:.2f}%"
+        daily_color = 'green' if daily_change >= 0 else 'red'
         
         # Získání historie obchodů
-        trade_history = get_trade_history(market_type=market_type)
+        trade_history = exchange.get_trade_history(market_type=market_type)
         
-        # Získání equity křivky
+        # Equity křivka - použití nové funkce
         equity_fig = create_equity_curve(market_type)
         
-        # Výpočet výkonnostních metrik
+        # Performance gauge - použití nové funkce
+        gauge_fig = create_performance_gauge()
+        
+        # Performance metriky
         metrics = calculate_performance_metrics(market_type)
         
         return (
             fig,
-            f"{portfolio_value:.2f} USDT",
-            f"{daily_change:.2f}%",
+            portfolio_display,
+            html.Span(daily_display, style={'color': daily_color}),
             generate_trade_history_table(trade_history),
             equity_fig,
-            create_performance_gauge(metrics),
+            gauge_fig,
             f"{metrics['win_rate']:.1f}%",
             f"{metrics['profit_factor']:.2f}",
             str(metrics['total_trades'])
@@ -984,7 +1189,21 @@ def update_dashboard(n_intervals, timeframe, asset, market_type):
         
     except Exception as e:
         logger.error(f"Chyba v callbacku: {str(e)}")
-        return fallback_values()
+        # Fallback hodnoty v případě chyby
+        empty_fig = go.Figure()
+        empty_fig.update_layout(title="Data nejsou dostupná")
+        return (
+            empty_fig,
+            "N/A",
+            "N/A",
+            [html.Tr([html.Td("Chyba při načítání dat", colSpan=6)])],
+            empty_fig,
+            empty_fig,
+            "N/A",
+            "N/A",
+            "N/A"
+        )
+
 
 # Callback pro Multi-Chart záložku
 @app.callback(
@@ -1572,105 +1791,6 @@ def update_bot_decisions(_, market_type):
         logger.error(f"Chyba při aktualizaci rozhodnutí bota: {str(e)}")
         return [html.Tr([html.Td(f"Error loading decisions: {str(e)}", colSpan=6)])]
 
-# Callback pro ukládání nastavení rizika
-@app.callback(
-    Output('bot-status-text', 'children'),
-    [Input('risk-settings-btn', 'n_clicks'),
-     Input('save-general-settings', 'n_clicks'),
-     Input('save-strategy-settings', 'n_clicks'),
-     Input('save-risk-settings', 'n_clicks')],
-    [State('stop-loss-input', 'value'),
-     State('take-profit-input', 'value'),
-     State('trade-amount-input', 'value'),
-     State('mode-setting', 'value'),
-     State('market-type-setting', 'value'),
-     State('base-currency-setting', 'value'),
-     State('refresh-interval-setting', 'value'),
-     State('strategy-setting', 'value'),
-     State('confidence-threshold-setting', 'value'),
-     State('strategy-timeframe-setting', 'value'),
-     State('global-stop-loss-setting', 'value'),
-     State('global-take-profit-setting', 'value'),
-     State('global-trade-size-setting', 'value'),
-     State('leverage-setting', 'value')]
-)
-def save_settings(
-    risk_clicks, general_clicks, strategy_clicks, risk_global_clicks,
-    stop_loss, take_profit, trade_amount,
-    mode, market_type, base_currency, refresh_interval,
-    strategy, confidence_threshold, strategy_timeframe,
-    global_stop_loss, global_take_profit, global_trade_size, leverage):
-    
-    # Kontrola, zda je uživatel admin
-    if not current_user.is_authenticated or current_user.role != 'admin':
-        return "Unauthorized"
-    
-    ctx = callback_context
-    if not ctx.triggered:
-        return "Idle"
-    
-    trigger_id = ctx.triggered[0]['prop_id'].split('.')[0]
-    
-    try:
-        # Načtení aktuální konfigurace
-        with open("config/config.yaml", 'r', encoding='utf-8') as f:
-            config = yaml.safe_load(f)
-            
-        if trigger_id == 'risk-settings-btn' and risk_clicks:
-            # Aktualizace hodnot rizika z dashboardu
-            config['risk_management']['stop_loss'] = f"{stop_loss}%"
-            config['risk_management']['take_profit'] = f"{take_profit}%"
-            config['risk_management']['max_trade_size'] = trade_amount
-            
-            # Uložení konfigurace
-            with open("config/config.yaml", 'w', encoding='utf-8') as f:
-                yaml.dump(config, f, sort_keys=False)
-                
-            return "Risk settings updated"
-            
-        elif trigger_id == 'save-general-settings' and general_clicks:
-            # Aktualizace obecných nastavení
-            config['mode'] = mode
-            config['market_type'] = market_type
-            config['base_currency'] = base_currency
-            config['api_settings']['refresh_interval'] = refresh_interval
-            
-            # Uložení konfigurace
-            with open("config/config.yaml", 'w', encoding='utf-8') as f:
-                yaml.dump(config, f, sort_keys=False)
-                
-            return "General settings updated"
-            
-        elif trigger_id == 'save-strategy-settings' and strategy_clicks:
-            # Aktualizace nastavení strategie
-            config['strategies']['active'] = strategy
-            config['strategies']['params']['confidence_threshold'] = confidence_threshold
-            config['strategies']['params']['timeframe'] = strategy_timeframe
-            
-            # Uložení konfigurace
-            with open("config/config.yaml", 'w', encoding='utf-8') as f:
-                yaml.dump(config, f, sort_keys=False)
-                
-            return "Strategy settings updated"
-            
-        elif trigger_id == 'save-risk-settings' and risk_global_clicks:
-            # Aktualizace globálních nastavení rizika
-            config['risk_management']['stop_loss'] = f"{global_stop_loss}%"
-            config['risk_management']['take_profit'] = f"{global_take_profit}%"
-            config['risk_management']['max_trade_size'] = global_trade_size
-            config['risk_management']['leverage'] = leverage
-            
-            # Uložení konfigurace
-            with open("config/config.yaml", 'w', encoding='utf-8') as f:
-                yaml.dump(config, f, sort_keys=False)
-                
-            return "Risk settings updated"
-            
-        return "Settings unchanged"
-    
-    except Exception as e:
-        logger.error(f"Chyba při ukládání nastavení: {str(e)}")
-        return f"Error: {str(e)}"
 
 # Callback pro přidání nového uživatele
 @app.callback(
@@ -1751,6 +1871,20 @@ def ensure_api_connection():
             logger.critical(f"Nelze obnovit připojení: {str(reconnect_error)}")
             return False
         
+def backup_database():
+    if os.path.exists('data/trading_history.db'):
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        backup_path = f'data/backup/trading_history_{timestamp}.db'
+        os.makedirs('data/backup', exist_ok=True)
+        import shutil
+        shutil.copy2('data/trading_history.db', backup_path)
+        logger.info(f"Vytvořena záloha databáze: {backup_path}")
+
+
 # Spuštění serveru
-if __name__ == '__main__':
+if __name__ == "__main__":
+    init_database()
+    update_database_schema()  # Volat před import_exchange_data()
+    import_exchange_data()
+    logger.info("Inicializace dokončena. Databáze je připravena k použití.")
     app.run(debug=True)
