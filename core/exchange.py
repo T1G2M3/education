@@ -98,20 +98,22 @@ class BinanceConnector:
             return []
 
     def get_real_time_data(self, symbol, timeframe='15m', limit=100, market_type=None):
-        """Získá OHLCV data pro daný trh"""
+        """Získá OHLCV data pro daný symbol a timeframe"""
         original_type = self.client.options['defaultType']
         try:
             market_type = market_type or self.market_type
             self.client.options['defaultType'] = market_type
             
             data = self.client.fetch_ohlcv(symbol, timeframe, limit=limit)
-            return data
             
+            # Vrátíme data jako seznam, ne jako DataFrame
+            return data
         except Exception as e:
-            logger.error(f"Chyba při získávání dat: {str(e)}")
+            self.logger.error(f"Chyba při získávání dat: {str(e)}")
             return []
         finally:
             self.client.options['defaultType'] = original_type
+
 
     def get_portfolio_value(self, market_type=None):
         """Získá hodnotu portfolia pro daný trh"""
@@ -174,7 +176,7 @@ class BinanceConnector:
             df = pd.read_sql(query, conn, params=params)
             conn.close()
             
-            if df.empty:
+            if not df.empty:
                 return []
                 
             for i, row in df.iterrows():

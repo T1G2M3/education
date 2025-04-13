@@ -1,25 +1,4 @@
-[2025-04-13 17:12:34] WARNING - saving_utils - Compiled the loaded model, but the compiled metrics have yet to be built. `model.compile_metrics` will be empty until you train or evaluate the model.
-[2025-04-13 17:12:34] INFO - ml_strategy - Model ai/models/prod_model_v1.h5 úspěšně načten
-[2025-04-13 17:12:34] INFO - ml_strategy - ML Strategie inicializována s thresholdem 0.7
-[2025-04-13 17:12:34] INFO - main - 🚀 Initializing QuantumTrader AI Engine...
-[2025-04-13 17:38:40] ERROR - exchange - Chyba inicializace klienta: 'api_key'
-[2025-04-13 17:38:40] CRITICAL - main - 🔥 Critical initialization failure: 'api_key'
-Traceback (most recent call last):
-  File "F:\!!!! BACKUP !!!!! REDLINEVIP\! ChatGPT ! projekty\__AutoTraderBot__\__MUJ_TRADE__\core\main.py", line 181, in <module>
-    bot = TradingBot()
-          ^^^^^^^^^^^^
-  File "F:\!!!! BACKUP !!!!! REDLINEVIP\! ChatGPT ! projekty\__AutoTraderBot__\__MUJ_TRADE__\core\main.py", line 15, in __init__
-    self._init_components()
-  File "F:\!!!! BACKUP !!!!! REDLINEVIP\! ChatGPT ! projekty\__AutoTraderBot__\__MUJ_TRADE__\core\main.py", line 30, in _init_components
-    self.exchange = BinanceConnector(self.config)
-                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "F:\!!!! BACKUP !!!!! REDLINEVIP\! ChatGPT ! projekty\__AutoTraderBot__\__MUJ_TRADE__\core\exchange.py", line 26, in __init__
-    self._init_client()
-  File "F:\!!!! BACKUP !!!!! REDLINEVIP\! ChatGPT ! projekty\__AutoTraderBot__\__MUJ_TRADE__\core\exchange.py", line 32, in _init_client
-    'apiKey': self.config['api_key'],
-              ~~~~~~~~~~~^^^^^^^^^^^
-KeyError: 'api_key'
-[2025-04-13 17:48:42] WARNING - saving_utils - Compiled the loaded model, but the compiled metrics have yet to be built. `model.compile_metrics` will be empty until you train or evaluate the model.
-[2025-04-13 17:48:42] INFO - ml_strategy - Model ai/models/prod_model_v1.h5 úspěšně načten
-[2025-04-13 17:48:42] INFO - ml_strategy - ML Strategie inicializována s thresholdem 0.7
-[2025-04-13 17:48:42] INFO - main - 🚀 Initializing QuantumTrader AI Engine...
+[2025-04-13 20:15:33] WARNING - saving_utils - Compiled the loaded model, but the compiled metrics have yet to be built. `model.compile_metrics` will be empty until you train or evaluate the model.
+[2025-04-13 20:15:33] INFO - ml_strategy - Model ai/models/prod_model_v1.h5 úspěšně načten
+[2025-04-13 20:15:33] INFO - ml_strategy - ML Strategie inicializována s thresholdem 0.7
+[2025-04-13 20:15:33] INFO - main - 🚀 Initializing QuantumTrader AI Engine...

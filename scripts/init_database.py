@@ -22,6 +22,9 @@ def init_database():
         if not os.path.exists('data'):
             os.makedirs('data')
         
+        # Kontrola, zda databáze již existuje
+        db_exists = os.path.exists('data/trading_history.db')
+        
         conn = sqlite3.connect('data/trading_history.db')
         cursor = conn.cursor()
 
@@ -67,12 +70,28 @@ def init_database():
         # Kontrola a aktualizace schématu
         update_database_schema(conn)
         
+        if not db_exists:
+            import_exchange_data()
+            
         conn.close()
         logger.info("Databáze úspěšně inicializována")
 
     except Exception as e:
         logger.error(f"Chyba při inicializaci databáze: {str(e)}")
         sys.exit(1)
+
+def get_trade_history(limit=10):
+    try:
+        conn = sqlite3.connect('data/trading_history.db', timeout=30)
+        df = pd.read_sql(f"SELECT * FROM trades ORDER BY timestamp DESC LIMIT {limit}", conn)
+        conn.close()
+        return df.to_dict('records') if not df.empty else []
+    except sqlite3.OperationalError as e:
+        logger.error(f"Databázový lock: {str(e)}")
+        return []
+    except Exception as e:
+        logger.error(f"Chyba: {str(e)}")
+        return []
 
 def update_database_schema(conn=None):
     """Aktualizuje schéma databáze pro novější verze"""

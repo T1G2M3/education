@@ -1,6 +1,7 @@
 # ui/web_app.py
 import logging
 logging.basicConfig(level=logging.INFO)
+from dash.exceptions import PreventUpdate
 import dash
 from dash import dcc, html, Input, Output, State, callback_context
 import plotly.graph_objects as go
@@ -673,7 +674,7 @@ def create_settings_layout():
 def handle_settings_saves(settings_clicks, strategy_clicks, risk_clicks, *args):
     ctx = dash.callback_context
     if not ctx.triggered:
-        raise dash.exceptions.PreventUpdate
+        raise PreventUpdate
     
     trigger_id = ctx.triggered[0]['prop_id'].split('.')[0]
     
@@ -696,7 +697,6 @@ def handle_settings_saves(settings_clicks, strategy_clicks, risk_clicks, *args):
     except Exception as e:
         logger.error(f"Chyba při ukládání nastavení: {str(e)}")
         return f"Error: {str(e)}"
-
 # Layout záložky Logs
 def create_logs_layout():
     return html.Div([
@@ -809,28 +809,26 @@ def render_content(tab):
         return create_logs_layout()
 
 # Funkce pro získání obchodní historie z databáze
-def get_trade_history(limit=10, market_type=None):
+def get_trade_history(limit=10):
+    """Získá historii obchodů z databáze"""
     try:
-        conn = sqlite3.connect('data/trading_history.db')
+        conn = sqlite3.connect('data/trading_history.db', timeout=30)
         query = """
-        SELECT timestamp, side, symbol, amount, entry_price, profit, market_type 
-        FROM trades 
-        """
+        SELECT timestamp, side, symbol, amount, entry_price, profit, market_type
+        FROM trades
+        ORDER BY timestamp DESC LIMIT ?"""
         
-        params = []
-        if market_type and market_type != 'all':
-            query += "WHERE market_type = ? "
-            params.append(market_type)
-            
-        query += "ORDER BY timestamp DESC LIMIT ?"
-        params.append(limit)
-        
-        df = pd.read_sql(query, conn, params=params)
+        df = pd.read_sql(query, conn, params=(limit,))
         conn.close()
-        return df
+        
+        # Kontrola prázdného DataFrame
+        if df.empty:
+            return []
+            
+        return df.to_dict('records')
     except Exception as e:
         logger.error(f"Chyba při získávání obchodní historie: {str(e)}")
-        return pd.DataFrame()
+        return []
 
 # Funkce pro získání equity křivky z databáze
 def get_equity_data(days=7):
@@ -881,7 +879,6 @@ def get_equity_data(days=7):
         logger.error(f"Chyba při získávání equity dat: {str(e)}")
         return pd.DataFrame({'timestamp': [datetime.now()], 'equity_value': [1000.0]})
     
-
 def create_equity_curve(market_type=None):
     """Vytvoří graf equity křivky na základě historických dat"""
     try:
@@ -906,8 +903,7 @@ def create_equity_curve(market_type=None):
         fig = go.Figure()
         fig.update_layout(title="Chyba při načítání dat", template='plotly_dark')
         return fig
-
-    
+ 
 def update_database_schema(conn=None):
     """Aktualizuje schéma databáze pro kompatibilitu s novějšími verzemi"""
     should_close = False
@@ -928,9 +924,6 @@ def update_database_schema(conn=None):
     
     if should_close:
         conn.close()
-
-  
-
 
 def create_performance_gauge(metrics=None):
     """Vytvoří gauge graf pro vizualizaci výkonnosti"""
@@ -1084,7 +1077,6 @@ def calculate_performance_metrics(market_type=None):
             'daily_profit': 0
         }
 
-
 def update_charts(n, market_type):
     try:
         # Získání dat
@@ -1106,7 +1098,7 @@ def update_charts(n, market_type):
 
 def create_price_chart(df):
     fig = go.Figure()
-    if not df.empty:
+    if df.empty:
         fig.add_trace(go.Candlestick(
             x=df['timestamp'],
             open=df['open'],
@@ -1119,7 +1111,7 @@ def create_price_chart(df):
 
 def create_equity_chart(df):
     fig = go.Figure()
-    if not df.empty:
+    if df.empty:
         fig.add_trace(go.Scatter(
             x=df['timestamp'],
             y=df['equity_value'],
@@ -1206,23 +1198,25 @@ def update_dashboard(n_intervals, timeframe, asset, market_type):
         return get_fallback_values()
 
 def get_fallback_values():
+    """Vrátí výchozí hodnoty v případě chyby"""
     empty_fig = go.Figure()
     empty_fig.update_layout(
-        title="Data nedostupná",
-        template='plotly_dark',
-        height=400
+        title="Data nejsou dostupná",
+        template='plotly_dark'
     )
+    
     return (
-        empty_fig,
-        "Načítám...",
-        "Načítám...",
-        [],
-        empty_fig,
-        empty_fig,
-        "N/A",
-        "N/A",
-        "N/A"
+        empty_fig,  # main-chart
+        "N/A",      # portfolio-value
+        "N/A",      # daily-change
+        [],         # trade-history
+        empty_fig,  # equity-curve
+        empty_fig,  # performance-gauge
+        "N/A",      # win-rate
+        "N/A",      # profit-factor
+        "N/A"       # total-trades
     )
+
 
 def generate_trade_table(trades):
     if not trades:
