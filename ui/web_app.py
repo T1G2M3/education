@@ -1085,12 +1085,6 @@ def calculate_performance_metrics(market_type=None):
         }
 
 
-@app.callback(
-    [Output('main-chart', 'figure'),
-     Output('equity-curve', 'figure')],
-    [Input('update-interval', 'n_intervals'),
-     Input('market-type-selector', 'value')]
-)
 def update_charts(n, market_type):
     try:
         # Získání dat
