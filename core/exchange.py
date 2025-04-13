@@ -6,20 +6,33 @@ import pandas as pd
 from datetime import datetime
 from decouple import config as env_config
 
+logger = logging.getLogger(__name__)
+logger = logging.getLogger('dashboard')
+
+# Konfigurace loggeru
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.FileHandler('logs/dashboard.log', encoding='utf-8'),
+        logging.StreamHandler()
+    ]
+)
+
+
 class BinanceConnector:
     def __init__(self, yaml_config):
         self.yaml_config = yaml_config
         self.mode = yaml_config.get('mode', 'dry')
         self.base_currency = yaml_config.get('base_currency', 'BNB')
-        self.market_type = yaml_config.get('market_type', 'spot')  # Přidáno
-        self.logger = logging.getLogger(__name__)
+        self.market_type = yaml_config.get('market_type', 'spot')
         
         try:
             self.client = ccxt.binance({
                 'apiKey': env_config('BINANCE_API_KEY', default=''),
                 'secret': env_config('BINANCE_API_SECRET', default=''),
                 'enableRateLimit': True,
-                'options': {'defaultType': self.market_type},  # Upraveno
+                'options': {'defaultType': self.market_type},
                 'timeout': 30000
             })
             
@@ -30,91 +43,52 @@ class BinanceConnector:
             self._init_database()
             
         except Exception as e:
-            self.logger.error(f"Inicializační chyba: {str(e)}")
+            logger.error(f"Chyba při inicializaci: {str(e)}")
             raise
 
     def _init_database(self):
-        """Kompletní inicializace databáze"""
+        """Inicializuje databázové schéma s podporou market_type"""
         conn = sqlite3.connect('data/trading_history.db')
         cursor = conn.cursor()
         
-        # Tabulka pro obchody
         cursor.execute('''
         CREATE TABLE IF NOT EXISTS trades (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            timestamp DATETIME,
-            symbol TEXT,
-            side TEXT,
-            amount REAL,
-            entry_price REAL,
+            timestamp DATETIME NOT NULL,
+            symbol TEXT NOT NULL,
+            side TEXT NOT NULL,
+            amount REAL NOT NULL,
+            entry_price REAL NOT NULL,
             exit_price REAL,
             profit REAL,
-            status TEXT,
-            market_type TEXT DEFAULT 'spot'
-        )
-        ''')
+            status TEXT NOT NULL,
+            market_type TEXT NOT NULL DEFAULT 'spot'
+        )''')
         
-        # Tabulka pro rozhodnutí
-        cursor.execute('''
-        CREATE TABLE IF NOT EXISTS decisions (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            timestamp DATETIME,
-            symbol TEXT,
-            signal TEXT,
-            confidence REAL,
-            action_taken TEXT,
-            market_type TEXT DEFAULT 'spot'
-        )
-        ''')
-        
-        # Tabulka pro predikce
-        cursor.execute('''
-        CREATE TABLE IF NOT EXISTS model_predictions (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            timestamp DATETIME,
-            symbol TEXT,
-            prediction REAL,
-            confidence REAL,
-            signal TEXT
-        )
-        ''')
-        
-        # Tabulka pro equity
         cursor.execute('''
         CREATE TABLE IF NOT EXISTS equity (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            timestamp DATETIME,
-            equity_value REAL
-        )
-        ''')
+            timestamp DATETIME NOT NULL,
+            equity_value REAL NOT NULL,
+            market_type TEXT NOT NULL DEFAULT 'spot'
+        )''')
         
-        # Tabulka pro aktivní pozice
         cursor.execute('''
         CREATE TABLE IF NOT EXISTS active_positions (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            symbol TEXT,
-            direction TEXT,
-            amount REAL,
-            entry_price REAL,
+            symbol TEXT NOT NULL,
+            direction TEXT NOT NULL,
+            amount REAL NOT NULL,
+            entry_price REAL NOT NULL,
             stop_loss REAL,
             take_profit REAL,
-            timestamp DATETIME,
-            market_type TEXT DEFAULT 'spot'
-        )
-        ''')
-        
-        # Tabulka pro konfiguraci bota
-        cursor.execute('''
-        CREATE TABLE IF NOT EXISTS bot_config (
-            id INTEGER PRIMARY KEY,
-            key TEXT UNIQUE,
-            value TEXT
-        )
-        ''')
+            timestamp DATETIME NOT NULL,
+            market_type TEXT NOT NULL DEFAULT 'spot'
+        )''')
         
         conn.commit()
         conn.close()
-
+    
     def get_market_pairs(self):
         """Získání dostupných obchodních párů"""
         try:
@@ -124,114 +98,18 @@ class BinanceConnector:
             return []
 
     def get_real_time_data(self, symbol, timeframe='15m', limit=100, market_type=None):
-        """Získá OHLCV data pro daný symbol a timeframe"""
+        """Získá OHLCV data pro daný trh"""
         original_type = self.client.options['defaultType']
         try:
             market_type = market_type or self.market_type
             self.client.options['defaultType'] = market_type
             
             data = self.client.fetch_ohlcv(symbol, timeframe, limit=limit)
-            
             return data
+            
         except Exception as e:
-            self.logger.error(f"Chyba při získávání dat: {str(e)}")
+            logger.error(f"Chyba při získávání dat: {str(e)}")
             return []
-        finally:
-            self.client.options['defaultType'] = original_type
-
-
-    def execute_trade(self, decision, amount, asset_pair=None, order_type='market', sl=None, tp=None, market_type=None):
-        """Provede obchod na zadaném trhu"""
-        original_type = self.client.options['defaultType']
-        try:
-            market_type = market_type or self.market_type
-            self.client.options['defaultType'] = market_type
-            
-            symbol = asset_pair or f"{self.base_currency}/USDT"
-            current_price = self.get_current_price(symbol, market_type)
-            
-            if self.mode == 'dry':
-                return self._simulate_trade(decision, amount, symbol, current_price, market_type)
-            
-            order = self.client.create_order(
-                symbol=symbol,
-                type=order_type,
-                side=decision.lower(),
-                amount=amount,
-                price=current_price if order_type == 'limit' else None,
-                params=self._get_order_params(sl, tp)
-            )
-            self._save_trade_to_db(decision, amount, symbol, current_price, market_type)
-            return order
-        except Exception as e:
-            self.logger.error(f"Chyba při provádění obchodu: {str(e)}")
-            return {'error': str(e)}
-        finally:
-            self.client.options['defaultType'] = original_type
-
-    def _get_order_params(self, sl, tp):
-        """Připraví parametry pro objednávku se SL/TP"""
-        params = {}
-        if sl and tp:
-            params.update({
-                'stopLossPrice': sl,
-                'takeProfitPrice': tp
-            })
-        return params
-
-    def _simulate_trade(self, decision, amount, symbol, price, market_type):
-        """Simuluje obchod v dry režimu"""
-        conn = sqlite3.connect('data/trading_history.db')
-        cursor = conn.cursor()
-        
-        # Záznam do historie obchodů
-        cursor.execute('''
-        INSERT INTO trades 
-        (timestamp, symbol, side, amount, entry_price, market_type, status)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
-        ''', (
-            datetime.now(), 
-            symbol, 
-            decision, 
-            amount, 
-            price, 
-            market_type,
-            'OPEN' if decision == 'BUY' else 'CLOSED'
-        ))
-        
-        if decision == 'BUY':
-            # Přidání do aktivních pozic
-            cursor.execute('''
-            INSERT INTO active_positions 
-            (symbol, direction, amount, entry_price, stop_loss, take_profit, timestamp, market_type)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-            ''', (
-                symbol,
-                'LONG',
-                amount,
-                price,
-                price * (1 - float(self.yaml_config['risk_management']['stop_loss'].strip('%')) / 100),
-                price * (1 + float(self.yaml_config['risk_management']['take_profit'].strip('%')) / 100),
-                datetime.now(),
-                market_type
-            ))
-        
-        conn.commit()
-        conn.close()
-        return {'status': 'simulated', 'price': price}
-
-    def get_current_price(self, symbol=None, market_type=None):
-        """Získá aktuální cenu pro daný trh"""
-        original_type = self.client.options['defaultType']
-        try:
-            market_type = market_type or self.market_type
-            self.client.options['defaultType'] = market_type
-            
-            symbol = symbol or f"{self.base_currency}/USDT"
-            return self.client.fetch_ticker(symbol)['last']
-        except Exception as e:
-            self.logger.error(f"Chyba při získávání ceny: {str(e)}")
-            return 0
         finally:
             self.client.options['defaultType'] = original_type
 
@@ -239,10 +117,11 @@ class BinanceConnector:
         """Získá hodnotu portfolia pro daný trh"""
         original_type = self.client.options['defaultType']
         try:
+            market_type = market_type or self.market_type
+            
             if self.mode == 'dry':
                 return self.virtual_balance
                 
-            market_type = market_type or self.market_type
             self.client.options['defaultType'] = market_type
             
             balance = self.client.fetch_balance()
@@ -253,18 +132,20 @@ class BinanceConnector:
                     try:
                         ticker = self.client.fetch_ticker(f"{currency}/USDT")
                         total += amount * ticker['last']
-                    except:
+                    except Exception as e:
+                        logger.warning(f"Chyba při hodnotění {currency}: {str(e)}")
                         continue
                         
             return total
+            
         except Exception as e:
-            self.logger.error(f"Chyba při získávání portfolia: {str(e)}")
+            logger.error(f"Chyba při získávání portfolia: {str(e)}")
             return 0
         finally:
             self.client.options['defaultType'] = original_type
 
     def get_24h_change(self, symbol=None, market_type=None):
-        """Získá 24h procentuální změnu"""
+        """Získá 24h procentuální změnu ceny"""
         original_type = self.client.options['defaultType']
         try:
             market_type = market_type or self.market_type
@@ -272,23 +153,9 @@ class BinanceConnector:
             
             symbol = symbol or f"{self.base_currency}/USDT"
             return self.client.fetch_ticker(symbol)['percentage']
-        except Exception as e:
-            self.logger.error(f"Chyba při získávání změny: {str(e)}")
-            return 0
-        finally:
-            self.client.options['defaultType'] = original_type
-
-    def get_24h_volume(self, symbol=None, market_type=None):
-        """Získá 24h objem obchodů"""
-        original_type = self.client.options['defaultType']
-        try:
-            market_type = market_type or self.market_type
-            self.client.options['defaultType'] = market_type
             
-            symbol = symbol or f"{self.base_currency}/USDT"
-            return self.client.fetch_ticker(symbol)['quoteVolume']
         except Exception as e:
-            self.logger.error(f"Chyba při získávání objemu: {str(e)}")
+            logger.error(f"Chyba při získávání změny: {str(e)}")
             return 0
         finally:
             self.client.options['defaultType'] = original_type
@@ -307,18 +174,130 @@ class BinanceConnector:
             df = pd.read_sql(query, conn, params=params)
             conn.close()
             
+            if df.empty:
+                return []
+                
             for i, row in df.iterrows():
                 current_price = self.get_current_price(row['symbol'], row['market_type'])
-                df.at[i, 'current_pnl'] = self._calculate_pnl(row, current_price)
                 df.at[i, 'current_price'] = current_price
+                df.at[i, 'pnl'] = self._calculate_pnl(row, current_price)
                 
             return df.to_dict('records')
+            
         except Exception as e:
-            self.logger.error(f"Chyba při získávání pozic: {str(e)}")
+            logger.error(f"Chyba při získávání pozic: {str(e)}")
             return []
 
+    def execute_trade(self, symbol, side, amount, order_type='market', price=None, market_type=None):
+        """Provede obchod na daném trhu"""
+        original_type = self.client.options['defaultType']
+        try:
+            market_type = market_type or self.market_type
+            self.client.options['defaultType'] = market_type
+            
+            if self.mode == 'dry':
+                return self._simulate_trade(symbol, side, amount, market_type)
+                
+            order = self.client.create_order(
+                symbol=symbol,
+                type=order_type,
+                side=side,
+                amount=amount,
+                price=price
+            )
+            
+            self._save_trade_to_db(symbol, side, amount, price, market_type)
+            return order
+            
+        except Exception as e:
+            logger.error(f"Chyba při provádění obchodu: {str(e)}")
+            return None
+        finally:
+            self.client.options['defaultType'] = original_type
+
+    def _simulate_trade(self, symbol, side, amount, market_type):
+        """Simuluje obchod v testovacím režimu"""
+        try:
+            price = self.get_current_price(symbol, market_type)
+            conn = sqlite3.connect('data/trading_history.db')
+            cursor = conn.cursor()
+            
+            cursor.execute('''
+                INSERT INTO trades 
+                (timestamp, symbol, side, amount, entry_price, status, market_type)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+            ''', (
+                datetime.now(),
+                symbol,
+                side,
+                amount,
+                price,
+                'SIMULATED',
+                market_type
+            ))
+            
+            conn.commit()
+            conn.close()
+            return {'status': 'simulated', 'price': price}
+            
+        except Exception as e:
+            logger.error(f"Chyba simulace obchodu: {str(e)}")
+            return None
+    
+    def get_current_price(self, symbol=None, market_type=None):
+        """Získá aktuální cenu pro daný trh"""
+        original_type = self.client.options['defaultType']
+        try:
+            market_type = market_type or self.market_type
+            self.client.options['defaultType'] = market_type
+            
+            symbol = symbol or f"{self.base_currency}/USDT"
+            return self.client.fetch_ticker(symbol)['last']
+        except Exception as e:
+            self.logger.error(f"Chyba při získávání ceny: {str(e)}")
+            return 0
+        finally:
+            self.client.options['defaultType'] = original_type
+
+    def get_trade_history(self, market_type=None, limit=100):
+        """Získá historii obchodů pro daný trh"""
+        try:
+            conn = sqlite3.connect('data/trading_history.db')
+            query = "SELECT * FROM trades"
+            params = []
+            
+            if market_type:
+                query += " WHERE market_type = ?"
+                params.append(market_type)
+                
+            query += " ORDER BY timestamp DESC LIMIT ?"
+            params.append(limit)
+            
+            df = pd.read_sql(query, conn, params=params)
+            conn.close()
+            return df.to_dict('records')
+            
+        except Exception as e:
+            logger.error(f"Chyba při získávání historie: {str(e)}")
+            return []
+
+    def get_24h_volume(self, symbol=None, market_type=None):
+        """Získá 24h objem obchodů"""
+        original_type = self.client.options['defaultType']
+        try:
+            market_type = market_type or self.market_type
+            self.client.options['defaultType'] = market_type
+            
+            symbol = symbol or f"{self.base_currency}/USDT"
+            return self.client.fetch_ticker(symbol)['quoteVolume']
+        except Exception as e:
+            self.logger.error(f"Chyba při získávání objemu: {str(e)}")
+            return 0
+        finally:
+            self.client.options['defaultType'] = original_type
+
     def _calculate_pnl(self, position, current_price):
-        """Vypočítá aktuální P/L pro pozici"""
+        """Vypočítá aktuální zisk/ztrátu pro pozici"""
         if position['direction'] == 'LONG':
             return (current_price - position['entry_price']) * position['amount']
         return (position['entry_price'] - current_price) * position['amount']
@@ -461,28 +440,6 @@ class BinanceConnector:
         except Exception as e:
             self.logger.error(f"Chyba při získávání stavu bota: {str(e)}")
             return False
-
-    def get_trade_history(self, limit=100, market_type=None):
-        """Získá historii obchodů"""
-        try:
-            conn = sqlite3.connect('data/trading_history.db')
-            query = "SELECT * FROM trades"
-            params = []
-            
-            if market_type:
-                query += " WHERE market_type = ?"
-                params.append(market_type)
-                    
-            query += " ORDER BY timestamp DESC LIMIT ?"
-            params.append(limit)
-            
-            df = pd.read_sql(query, conn, params=params)
-            conn.close()
-            return df.to_dict('records')
-                
-        except Exception as e:
-            self.logger.error(f"Chyba při získávání historie: {str(e)}")
-            return []
 
     def update_risk_parameters(self, stop_loss, take_profit, max_trade_size):
         """Aktualizuje parametry rizikového managementu"""

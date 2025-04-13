@@ -1,4 +1,6 @@
 # ui/web_app.py
+import logging
+logging.basicConfig(level=logging.INFO)
 import dash
 from dash import dcc, html, Input, Output, State, callback_context
 import plotly.graph_objects as go
@@ -6,7 +8,6 @@ import pandas as pd
 import numpy as np
 import sqlite3
 import os
-import logging
 from datetime import datetime, timedelta
 from flask_login import LoginManager, UserMixin, login_user, logout_user, current_user, login_required
 import flask
@@ -16,6 +17,7 @@ import yaml
 import traceback
 import dash_bootstrap_components as dbc
 from scripts.init_database import import_exchange_data
+
 
 # Konfigurace loggeru
 logging.basicConfig(
@@ -149,7 +151,7 @@ dbc.Spinner(
 app_layout = html.Div([
     dcc.Location(id='url', refresh=False),
     dcc.Store(id='session-data'),
-    dcc.Interval(id='update-interval', interval=30*1000), # 1 minuta dcc.Interval(id='update-interval', interval=60*1000)
+    dcc.Interval(id='update-interval', interval=60*1000), # 1 minuta dcc.Interval(id='update-interval', interval=60*1000)
     
     html.Div([
         html.Div([
@@ -1083,6 +1085,54 @@ def calculate_performance_metrics(market_type=None):
         }
 
 
+@app.callback(
+    [Output('main-chart', 'figure'),
+     Output('equity-curve', 'figure')],
+    [Input('update-interval', 'n_intervals'),
+     Input('market-type-selector', 'value')]
+)
+def update_charts(n, market_type):
+    try:
+        # Získání dat
+        df = exchange.get_real_time_data('BTC/USDT')
+        equity_df = pd.read_sql(
+            "SELECT timestamp, equity_value FROM equity WHERE market_type = ?", 
+            sqlite3.connect('data/trading_history.db'),
+            params=[market_type]
+        )
+        
+        # Vytvoření grafů
+        price_fig = create_price_chart(df)
+        equity_fig = create_equity_chart(equity_df)
+        
+        return price_fig, equity_fig
+    except Exception as e:
+        logging.error(f"Chyba v callbacku: {str(e)}")
+        return go.Figure(), go.Figure()
+
+def create_price_chart(df):
+    fig = go.Figure()
+    if not df.empty:
+        fig.add_trace(go.Candlestick(
+            x=df['timestamp'],
+            open=df['open'],
+            high=df['high'],
+            low=df['low'],
+            close=df['close']
+        ))
+    fig.update_layout(template='plotly_dark')
+    return fig
+
+def create_equity_chart(df):
+    fig = go.Figure()
+    if not df.empty:
+        fig.add_trace(go.Scatter(
+            x=df['timestamp'],
+            y=df['equity_value'],
+            mode='lines'
+        ))
+    fig.update_layout(template='plotly_dark')
+    return fig
 
 # Callback pro aktualizaci hlavního grafu a metrik
 @app.callback(
@@ -1102,25 +1152,26 @@ def calculate_performance_metrics(market_type=None):
 )
 def update_dashboard(n_intervals, timeframe, asset, market_type):
     try:
-        # Získání OHLCV dat
+        # Kontrola povinných parametrů
+        if None in (timeframe, asset, market_type):
+            raise ValueError("Nebyly vybrány všechny parametry")
+        
+        # Získání dat
         raw_data = exchange.get_real_time_data(
             symbol=asset,
             timeframe=timeframe,
             market_type=market_type
         )
         
-        if not raw_data:
-            raise ValueError("Nepodařilo se získat data z API")
-            
         # Zpracování dat
         df = pd.DataFrame(raw_data, columns=['timestamp', 'open', 'high', 'low', 'close', 'volume'])
         df['timestamp'] = pd.to_datetime(df['timestamp'], unit='ms')
         
-        # Výpočet technických indikátorů
-        df['sma20'] = df['close'].rolling(window=20).mean()
-        df['sma50'] = df['close'].rolling(window=50).mean()
+        # Výpočet indikátorů
+        df['sma20'] = df['close'].rolling(20).mean()
+        df['sma50'] = df['close'].rolling(50).mean()
         
-        # Vytvoření hlavního grafu
+        # Vytvoření grafu
         fig = go.Figure()
         fig.add_trace(go.Candlestick(
             x=df['timestamp'],
@@ -1128,82 +1179,71 @@ def update_dashboard(n_intervals, timeframe, asset, market_type):
             high=df['high'],
             low=df['low'],
             close=df['close'],
-            name='OHLC'
+            name='Candles'
         ))
-        
-        fig.add_trace(go.Scatter(
-            x=df['timestamp'],
-            y=df['sma20'],
-            name='SMA 20',
-            line=dict(color='blue', width=1)
-        ))
-        
-        fig.add_trace(go.Scatter(
-            x=df['timestamp'],
-            y=df['sma50'],
-            name='SMA 50',
-            line=dict(color='orange', width=1)
-        ))
-        
         fig.update_layout(
             title=f'{asset} - {timeframe}',
-            xaxis_title='Čas',
-            yaxis_title='Cena',
             template='plotly_dark',
-            height=400,
-            margin=dict(l=10, r=10, t=40, b=20)
+            height=400
         )
-
-        # Získání portfolio hodnoty
-        portfolio_value = exchange.get_portfolio_value(market_type)
-        portfolio_display = f"{portfolio_value:.2f} USDT"
         
-        # Získání denní změny
-        daily_change = exchange.get_24h_change(asset, market_type)
-        daily_display = f"{daily_change:.2f}%"
-        daily_color = 'green' if daily_change >= 0 else 'red'
+        # Získání dalších dat
+        portfolio = exchange.get_portfolio_value(market_type)
+        change = exchange.get_24h_change(asset, market_type)
         
         # Získání historie obchodů
-        trade_history = exchange.get_trade_history(market_type=market_type)
+        trades = get_trade_history()
         
-        # Equity křivka - použití nové funkce
-        equity_fig = create_equity_curve(market_type)
-        
-        # Performance gauge - použití nové funkce
-        gauge_fig = create_performance_gauge()
-        
-        # Performance metriky
-        metrics = calculate_performance_metrics(market_type)
-        
+        # Vytvoření kompletní odpovědi
         return (
             fig,
-            portfolio_display,
-            html.Span(daily_display, style={'color': daily_color}),
-            generate_trade_history_table(trade_history),
-            equity_fig,
-            gauge_fig,
-            f"{metrics['win_rate']:.1f}%",
-            f"{metrics['profit_factor']:.2f}",
-            str(metrics['total_trades'])
+            f"{portfolio:.2f} USDT",
+            f"{change:.2f}%",
+            generate_trade_table(trades),
+            create_equity_curve(),
+            create_performance_gauge(),
+            "75.5%",  # Demo hodnoty
+            "1.25", 
+            "42"
         )
         
     except Exception as e:
-        logger.error(f"Chyba v callbacku: {str(e)}")
-        # Fallback hodnoty v případě chyby
-        empty_fig = go.Figure()
-        empty_fig.update_layout(title="Data nejsou dostupná")
-        return (
-            empty_fig,
-            "N/A",
-            "N/A",
-            [html.Tr([html.Td("Chyba při načítání dat", colSpan=6)])],
-            empty_fig,
-            empty_fig,
-            "N/A",
-            "N/A",
-            "N/A"
-        )
+        logger.error(f"Chyba: {str(e)}")
+        return get_fallback_values()
 
+def get_fallback_values():
+    empty_fig = go.Figure()
+    empty_fig.update_layout(
+        title="Data nedostupná",
+        template='plotly_dark',
+        height=400
+    )
+    return (
+        empty_fig,
+        "Načítám...",
+        "Načítám...",
+        [],
+        empty_fig,
+        empty_fig,
+        "N/A",
+        "N/A",
+        "N/A"
+    )
+
+def generate_trade_table(trades):
+    if not trades:
+        return [html.Tr([html.Td("Žádné obchody", colSpan=6)])]
+    
+    return [
+        html.Tr([
+            html.Td(trade['timestamp']),
+            html.Td(trade['side'], style={'color': 'green' if trade['side'] == 'BUY' else 'red'}),
+            html.Td(trade['symbol']),
+            html.Td(f"{trade['amount']:.4f}"),
+            html.Td(f"{trade['entry_price']:.2f}"),
+            html.Td(f"{trade['profit']:.2f}", style={'color': 'green' if trade['profit'] > 0 else 'red'})
+        ]) for trade in trades
+    ]
 
 # Callback pro Multi-Chart záložku
 @app.callback(

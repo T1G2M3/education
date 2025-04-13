@@ -400,3 +400,19 @@
     margin-top: 10px;
     text-align: center;
 }
+
+#main-chart, #equity-curve {
+    min-height: 400px;
+    background: #1e1e1e;
+    border-radius: 8px;
+    margin: 10px 0;
+    transition: opacity 0.3s ease;  /* Zabrání blikání */
+}
+
+.loading-spinner {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    z-index: 1000;
+}
