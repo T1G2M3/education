@@ -90,15 +90,23 @@ class BinanceConnector:
             self.logger.error(f"Chyba: {str(e)}")
             return []
 
+    # core/exchange.py - použití pouze reálného API
     def get_real_time_data(self, symbol, timeframe='15m', limit=100, market_type=None):
-        """Získání OHLCV dat"""
+        """Získá OHLCV data přímo z Binance API"""
         try:
-            market_type = market_type or self.market_type
-            self.client.options['defaultType'] = market_type
+            if market_type:
+                old_type = self.client.options['defaultType']
+                self.client.options['defaultType'] = market_type
             
-            return self.client.fetch_ohlcv(symbol, timeframe, limit=limit)
+            # Použití reálného API i v režimu dry-run
+            result = self.client.fetch_ohlcv(symbol, timeframe, limit=limit)
+            
+            if market_type:
+                self.client.options['defaultType'] = old_type
+                
+            return result
         except Exception as e:
-            self.logger.error(f"Chyba: {str(e)}")
+            self.logger.error(f"Chyba při získávání dat: {str(e)}")
             return []
 
 
@@ -411,27 +419,67 @@ class BinanceConnector:
             self.logger.error(f"Chyba při získávání stavu bota: {str(e)}")
             return False
 
-    def get_trade_history(self, limit=100, market_type=None):
-        """Získá historii obchodů"""
+    def get_trade_history(limit=10):
+        """Získá historii obchodů z databáze"""
         try:
             conn = sqlite3.connect('data/trading_history.db')
-            query = "SELECT * FROM trades"
-            params = []
-            
-            if market_type:
-                query += " WHERE market_type = ?"
-                params.append(market_type)
-                
-            query += " ORDER BY timestamp DESC LIMIT ?"
-            params.append(limit)
-            
-            df = pd.read_sql(query, conn, params=params)
+            query = """
+            SELECT timestamp, side, symbol, amount, entry_price, exit_price, profit, status
+            FROM trades
+            ORDER BY timestamp DESC
+            LIMIT ?
+            """
+            df = pd.read_sql(query, conn, params=(limit,), parse_dates=['timestamp'])
             conn.close()
             return df.to_dict('records')
+        except Exception as e:
+            logger.error(f"Chyba při získávání historie obchodů: {str(e)}")
+            return []
+        
+    def create_equity_curve():
+        """Vytvoří graf equity křivky"""
+        try:
+            conn = sqlite3.connect('data/trading_history.db')
+            query = """
+            SELECT timestamp, profit
+            FROM trades
+            WHERE status = 'CLOSED'
+            ORDER BY timestamp ASC
+            """
+            df = pd.read_sql(query, conn, parse_dates=['timestamp'])
+            conn.close()
+            
+            if df.empty:
+                fig = go.Figure()
+                fig.update_layout(title="Zatím žádná data")
+                return fig
+                
+            df['cumulative_profit'] = df['profit'].cumsum()
+            
+            fig = go.Figure()
+            fig.add_trace(go.Scatter(
+                x=df['timestamp'],
+                y=df['cumulative_profit'],
+                mode='lines',
+                name='Equity'
+            ))
+            
+            fig.update_layout(
+                title="Equity Curve",
+                xaxis_title="Čas",
+                yaxis_title="Profit (USDT)",
+                template='plotly_dark',
+                height=200,
+                margin=dict(l=10, r=10, t=40, b=20)
+            )
+            
+            return fig
             
         except Exception as e:
-            self.logger.error(f"Chyba při získávání historie: {str(e)}")
-            return []
+            logger.error(f"Chyba při vytváření equity křivky: {str(e)}")
+            fig = go.Figure()
+            fig.update_layout(title="Chyba při získávání dat")
+            return fig       
 
     def update_risk_parameters(self, stop_loss, take_profit, max_trade_size):
         """Aktualizuje parametry rizikového managementu"""

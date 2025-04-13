@@ -38,7 +38,8 @@ def init_database():
         entry_price REAL,
         exit_price REAL,
         profit REAL,
-        status TEXT
+        status TEXT,
+        market_type TEXT DEFAULT 'spot'
     )
     ''')
     
@@ -50,7 +51,8 @@ def init_database():
         symbol TEXT,
         signal TEXT,
         confidence REAL,
-        action_taken TEXT
+        action_taken TEXT,
+        market_type TEXT DEFAULT 'spot'
     )
     ''')
     
@@ -73,7 +75,8 @@ def init_database():
         entry_price REAL,
         stop_loss REAL,
         take_profit REAL,
-        timestamp DATETIME
+        timestamp DATETIME,
+        market_type TEXT DEFAULT 'spot'
     )
     ''')
     
@@ -98,6 +101,18 @@ def init_database():
     )
     ''')
     
+    # Tabulka pro risk metriky
+    cursor.execute('''
+    CREATE TABLE IF NOT EXISTS risk_metrics (
+        id INTEGER PRIMARY KEY,
+        timestamp DATETIME,
+        current_balance REAL,
+        peak_balance REAL,
+        drawdown REAL,
+        risk_score REAL
+    )
+    ''')
+    
     conn.commit()
     conn.close()
     
@@ -116,9 +131,7 @@ def import_exchange_data():
         })
         
         # Získání dostupných symbolů
-        symbols = [
-            'BNB/USDT', 'BTC/USDT', 'ETH/USDT', 'SOL/USDT', 'XRP/USDT'
-        ]
+        symbols = ['BNB/USDT', 'BTC/USDT', 'ETH/USDT', 'SOL/USDT', 'XRP/USDT', 'ADA/USDT', 'DOGE/USDT']
         
         # Připojení k databázi
         conn = sqlite3.connect('data/trading_history.db')
@@ -146,6 +159,34 @@ def import_exchange_data():
             "INSERT INTO equity (timestamp, equity_value) VALUES (?, ?)",
             (now, initial_value)
         )
+        
+        # Vygenerování ukázkových obchodů
+        for i in range(20):
+            # Náhodné datum v posledních 30 dnech
+            trade_date = now - timedelta(days=np.random.randint(1, 30))
+            symbol = np.random.choice(symbols)
+            side = np.random.choice(['BUY', 'SELL'])
+            amount = round(np.random.uniform(0.1, 2.0), 4)
+            entry_price = round(np.random.uniform(10, 500), 2)
+            
+            # 70% šance na ziskový obchod
+            profit_chance = np.random.random()
+            if profit_chance > 0.3:
+                profit = round(amount * entry_price * np.random.uniform(0.01, 0.05), 2)
+            else:
+                profit = round(-amount * entry_price * np.random.uniform(0.01, 0.03), 2)
+            
+            cursor.execute(
+                "INSERT INTO trades (timestamp, symbol, side, amount, entry_price, profit, status, market_type) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                (trade_date, symbol, side, amount, entry_price, profit, 'CLOSED', 'spot')
+            )
+            
+            # Přidání rozhodnutí pro každý obchod
+            confidence = round(np.random.uniform(0.6, 0.95), 2)
+            cursor.execute(
+                "INSERT INTO decisions (timestamp, symbol, signal, confidence, action_taken, market_type) VALUES (?, ?, ?, ?, ?, ?)",
+                (trade_date, symbol, side, confidence, 'EXECUTED', 'spot')
+            )
         
         conn.commit()
         conn.close()

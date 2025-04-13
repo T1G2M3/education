@@ -1,3 +1,4 @@
+# ui/web_app.py
 import dash
 from dash import dcc, html, Input, Output, State, callback_context
 import plotly.graph_objects as go
@@ -11,7 +12,6 @@ from flask_login import LoginManager, UserMixin, login_user, logout_user, curren
 import flask
 from werkzeug.security import generate_password_hash, check_password_hash
 from core.exchange import BinanceConnector
-from core.data_processor import DataProcessor
 import yaml
 import traceback
 import dash_bootstrap_components as dbc
@@ -138,7 +138,7 @@ login_layout = html.Div([
 app_layout = html.Div([
     dcc.Location(id='url', refresh=False),
     dcc.Store(id='session-data'),
-    dcc.Interval(id='update-interval', interval=5*1000),
+    dcc.Interval(id='update-interval', interval=60*1000), # 1 minuta dcc.Interval(id='update-interval', interval=60*1000)
     
     html.Div([
         html.Div([
@@ -918,265 +918,73 @@ def get_equity_data(days=7):
      Input('asset-selector', 'value'),
      Input('market-type-selector', 'value')]
 )
-def update_dashboard(_, timeframe, asset, market_type):
+def update_dashboard(n_intervals, timeframe, asset, market_type):
     try:
-
+        # Získání OHLCV dat s ošetřením market_type
+        raw_data = exchange.get_real_time_data(
+            symbol=asset,
+            timeframe=timeframe,
+            market_type=market_type  # Kritický parametr!
+        )
         
-        # Zpracování pro grafy
+        if not raw_data:
+            raise ValueError("Nepodařilo se získat data z API")
+            
+        # Zpracování dat
         df = pd.DataFrame(raw_data, columns=['timestamp', 'open', 'high', 'low', 'close', 'volume'])
         df['timestamp'] = pd.to_datetime(df['timestamp'], unit='ms')
-        df.set_index('timestamp', inplace=True)
         
-        # Přidání technických indikátorů
-        df['ema20'] = df['close'].ewm(span=20, adjust=False).mean()
-        df['ema50'] = df['close'].ewm(span=50, adjust=False).mean()
+        # Výpočet technických indikátorů
+        df['sma20'] = df['close'].rolling(20).mean()
+        df['sma50'] = df['close'].rolling(50).mean()
         
-        # Vytvoření candlestick grafu
+        # Vytvoření hlavního grafu
         fig = go.Figure()
-        
         fig.add_trace(go.Candlestick(
-            x=df.index,
+            x=df['timestamp'],
             open=df['open'],
             high=df['high'],
             low=df['low'],
             close=df['close'],
-            name='Price'
+            name='OHLC'
         ))
+        fig.add_trace(go.Scatter(x=df['timestamp'], y=df['sma20'], name='SMA 20'))
+        fig.add_trace(go.Scatter(x=df['timestamp'], y=df['sma50'], name='SMA 50'))
         
-        fig.add_trace(go.Scatter(
-            x=df.index,
-            y=df['ema20'],
-            line=dict(color='#00ffff', width=1),
-            name='EMA 20'
-        ))
-        
-        fig.add_trace(go.Scatter(
-            x=df.index,
-            y=df['ema50'],
-            line=dict(color='#ff00ff', width=1),
-            name='EMA 50'
-        ))
-        
-        # Získáme obchodní signály z databáze
-        try:
-            conn = sqlite3.connect('data/trading_history.db')
-            query = f"""
-                SELECT timestamp, signal, action_taken 
-                FROM decisions 
-                WHERE symbol = ? AND market_type = ?
-                ORDER BY timestamp DESC
-                LIMIT 20
-            """
-            signals_df = pd.read_sql(query, conn, params=(asset, market_type), parse_dates=['timestamp'])
-            conn.close()
-            
-            # Přidání značek pro buy/sell signály
-            if not signals_df.empty:
-                buy_signals = signals_df[signals_df['signal'] == 'BUY']['timestamp'].tolist()
-                sell_signals = signals_df[signals_df['signal'] == 'SELL']['timestamp'].tolist()
-                
-                if buy_signals:
-                    buy_prices = []
-                    for ts in buy_signals:
-                        matching_rows = df.index[df.index >= ts]
-                        if len(matching_rows) > 0:
-                            buy_prices.append(df.loc[matching_rows[0]]['close'])
-                    
-                    if buy_prices:
-                        buy_signals = buy_signals[:len(buy_prices)]
-                        fig.add_trace(go.Scatter(
-                            x=buy_signals,
-                            y=buy_prices,
-                            mode='markers',
-                            marker=dict(
-                                size=10,
-                                symbol='triangle-up',
-                                color='#00ff88',
-                                line=dict(width=1, color='#000000')
-                            ),
-                            name='Buy Signal'
-                        ))
-                
-                if sell_signals:
-                    sell_prices = []
-                    for ts in sell_signals:
-                        matching_rows = df.index[df.index >= ts]
-                        if len(matching_rows) > 0:
-                            sell_prices.append(df.loc[matching_rows[0]]['close'])
-                    
-                    if sell_prices:
-                        sell_signals = sell_signals[:len(sell_prices)]
-                        fig.add_trace(go.Scatter(
-                            x=sell_signals,
-                            y=sell_prices,
-                            mode='markers',
-                            marker=dict(
-                                size=10,
-                                symbol='triangle-down',
-                                color='#ff5555',
-                                line=dict(width=1, color='#000000')
-                            ),
-                            name='Sell Signal'
-                        ))
-        except Exception as e:
-            logger.error(f"Chyba při získávání signálů: {str(e)}")
-        
-        # Layout grafu
         fig.update_layout(
-            title=f"{asset} - {market_type.upper()} - {timeframe}",
-            xaxis_rangeslider_visible=False,
-            plot_bgcolor='#1e1e1e',
-            paper_bgcolor='#1e1e1e',
-            font=dict(color='white'),
-            margin=dict(l=20, r=20, t=40, b=20),
-            legend=dict(
-                orientation="h",
-                yanchor="bottom",
-                y=1.02,
-                xanchor="left",
-                x=0
-            )
+            title=f'{asset} - {timeframe} ({market_type})',
+            template='plotly_dark',
+            height=400
         )
+
+        # Získání dalších dat
+        portfolio_value = exchange.get_portfolio_value(market_type)
+        daily_change = exchange.get_24h_change(asset, market_type)
         
-        # Získání hodnoty portfolia
-        portfolio_value = exchange.get_portfolio_value(market_type=market_type)
+        # Získání historie obchodů
+        trade_history = get_trade_history(market_type=market_type)
         
-        # Získání 24h změny
-        daily_change = exchange.get_24h_change(asset, market_type=market_type)
+        # Získání equity křivky
+        equity_fig = create_equity_curve(market_type)
         
-        # Získání obchodní historie z databáze
-        trades_df = get_trade_history(limit=10, market_type=market_type)
-        
-        # Vytvoření řádků pro tabulku obchodů
-        if trades_df.empty:
-            trade_rows = [html.Tr([html.Td("No trades yet", colSpan=6)])]
-        else:
-            trade_rows = []
-            for _, trade in trades_df.iterrows():
-                trade_rows.append(html.Tr([
-                    html.Td(str(trade['timestamp'])), 
-                    html.Td(trade['side'], style={'color': 'green' if trade['side'] == 'BUY' else 'red'}),
-                    html.Td(trade['symbol']),
-                    html.Td(f"{trade['amount']:.4f}"),
-                    html.Td(f"{trade['entry_price']:.2f}$"),
-                    html.Td(f"{trade['profit']:.2f}$", style={'color': 'green' if trade['profit'] >= 0 else 'red'})
-                ]))
-        
-        # Získání equity křivky z databáze
-        equity_df = get_equity_data()
-        
-        equity_fig = go.Figure()
-        equity_fig.add_trace(go.Scatter(
-            x=equity_df['timestamp'],
-            y=equity_df['equity_value'],
-            line=dict(color='#00ff88', width=2),
-            fill='tozeroy',
-            fillcolor='rgba(0, 255, 136, 0.1)'
-        ))
-        
-        equity_fig.update_layout(
-            plot_bgcolor='#1e1e1e',
-            paper_bgcolor='#1e1e1e',
-            font=dict(color='white'),
-            margin=dict(l=20, r=20, t=20, b=20),
-            xaxis=dict(showgrid=False),
-            yaxis=dict(showgrid=True, gridcolor='#333333')
-        )
-        
-        # Performance gauge
-        gauge_fig = go.Figure(go.Indicator(
-            mode="gauge+number",
-            value=daily_change,
-            domain={'x': [0, 1], 'y': [0, 1]},
-            gauge={
-                'axis': {'range': [-10, 10]},
-                'bar': {'color': "#00ff88" if daily_change >= 0 else "#ff5555"},
-                'steps': [
-                    {'range': [-10, 0], 'color': "#330000"},
-                    {'range': [0, 10], 'color': "#003300"}
-                ]
-            }
-        ))
-        
-        gauge_fig.update_layout(
-            plot_bgcolor='#1e1e1e',
-            paper_bgcolor='#1e1e1e',
-            font=dict(color='white'),
-            margin=dict(l=20, r=20, t=20, b=20)
-        )
-        
-        # Získání obchodních metrik
-        try:
-            conn = sqlite3.connect('data/trading_history.db')
-            cursor = conn.cursor()
-            
-            params = []
-            where_clause = ""
-            if market_type and market_type != 'all':
-                where_clause = "WHERE market_type = ?"
-                params.append(market_type)
-            
-            # Celkový počet obchodů
-            query = f"SELECT COUNT(*) FROM trades {where_clause}"
-            cursor.execute(query, params)
-            total_trades = cursor.fetchone()[0]
-            
-            # Výherní obchody
-            win_query = f"SELECT COUNT(*) FROM trades {where_clause + ' AND' if where_clause else 'WHERE'} profit > 0"
-            cursor.execute(win_query, params)
-            winning_trades = cursor.fetchone()[0]
-            
-            # Win rate
-            win_rate = (winning_trades / total_trades * 100) if total_trades > 0 else 0
-            
-            # Profit faktor
-            profit_query = f"SELECT SUM(profit) FROM trades {where_clause + ' AND' if where_clause else 'WHERE'} profit > 0"
-            cursor.execute(profit_query, params)
-            profit_sum = cursor.fetchone()[0] or 0
-            
-            loss_query = f"SELECT SUM(profit) FROM trades {where_clause + ' AND' if where_clause else 'WHERE'} profit < 0"
-            cursor.execute(loss_query, params)
-            loss_sum = abs(cursor.fetchone()[0] or 0)
-            
-            profit_factor = profit_sum / loss_sum if loss_sum > 0 else float('inf')
-            
-            conn.close()
-        except Exception as e:
-            logger.error(f"Chyba při získávání obchodních metrik: {str(e)}")
-            total_trades = 0
-            win_rate = 0
-            profit_factor = 0
+        # Výpočet výkonnostních metrik
+        metrics = calculate_performance_metrics(market_type)
         
         return (
-            fig, 
-            f"{portfolio_value:.2f}$", 
-            f"{daily_change:.2f}%", 
-            trade_rows, 
-            equity_fig, 
-            gauge_fig,
-            f"{win_rate:.1f}%",
-            f"{profit_factor:.2f}",
-            f"{total_trades}"
+            fig,
+            f"{portfolio_value:.2f} USDT",
+            f"{daily_change:.2f}%",
+            generate_trade_history_table(trade_history),
+            equity_fig,
+            create_performance_gauge(metrics),
+            f"{metrics['win_rate']:.1f}%",
+            f"{metrics['profit_factor']:.2f}",
+            str(metrics['total_trades'])
         )
-    
+        
     except Exception as e:
-        logger.error(f"Chyba při aktualizaci dashboardu: {str(e)}")
-        logger.error(traceback.format_exc())
-        
-        # Prázdný graf v případě chyby
-        empty_fig = go.Figure()
-        empty_fig.update_layout(
-            plot_bgcolor='#1e1e1e',
-            paper_bgcolor='#1e1e1e',
-            font=dict(color='white')
-        )
-        
-        empty_table = [html.Tr([html.Td("Data loading error", colSpan=6)])]
-        
-        return (
-            empty_fig, "0.00$", "0.00%", empty_table, empty_fig, empty_fig,
-            "0%", "0", "0"
-        )
+        logger.error(f"Chyba v callbacku: {str(e)}")
+        return fallback_values()
 
 # Callback pro Multi-Chart záložku
 @app.callback(
@@ -1921,6 +1729,28 @@ def create_ai_metrics():
         ], className='ai-metrics-container')
     ], className="ai-panel")
 
+
+
+def ensure_api_connection():
+    """Ověří a obnoví připojení k API"""
+    global exchange
+    
+    try:
+        # Test připojení
+        exchange.client.fetch_status()
+        return True
+    except Exception as e:
+        logger.error(f"Ztraceno spojení s API: {str(e)}")
+        
+        # Pokus o obnovení připojení
+        try:
+            exchange = BinanceConnector(load_config())
+            logger.info("Připojení k API obnoveno")
+            return True
+        except Exception as reconnect_error:
+            logger.critical(f"Nelze obnovit připojení: {str(reconnect_error)}")
+            return False
+        
 # Spuštění serveru
 if __name__ == '__main__':
     app.run(debug=True)
