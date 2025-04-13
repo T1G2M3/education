@@ -1,4 +1,5 @@
 # core/exchange.py
+import time
 import ccxt
 import logging
 import sqlite3
@@ -98,23 +99,39 @@ class BinanceConnector:
             return []
 
     def get_real_time_data(self, symbol, timeframe='15m', limit=100, market_type=None):
-        """Získá OHLCV data pro daný symbol a timeframe"""
-        original_type = self.client.options['defaultType']
-        try:
-            market_type = market_type or self.market_type
-            self.client.options['defaultType'] = market_type
-            
-            data = self.client.fetch_ohlcv(symbol, timeframe, limit=limit)
-            
-            # Vrátíme data jako seznam, ne jako DataFrame
-            return data
-        except Exception as e:
-            self.logger.error(f"Chyba při získávání dat: {str(e)}")
-            return []
-        finally:
-            self.client.options['defaultType'] = original_type
+        """Získá OHLCV data s retry mechanismem"""
+        max_retries = 3
+        retry_delay = 2
+        
+        for attempt in range(max_retries):
+            try:
+                # Původní kód volání API
+                data = self.client.fetch_ohlcv(symbol, timeframe, limit=limit)
+                return data
+            except Exception as e:
+                logger.warning(f"Pokus {attempt+1}/{max_retries} selhal: {str(e)}")
+                if attempt < max_retries - 1:
+                    time.sleep(retry_delay * (attempt + 1))  # Exponential backoff
+                else:
+                    logger.error(f"Všechny pokusy selhaly: {str(e)}")
+                    return []
 
 
+    def get_test_data(self, symbol, timeframe='15m', limit=100):
+        """Vrátí testovací data pro vývoj"""
+        now = int(datetime.now().timestamp() * 1000)
+        base_price = 30000 if 'BTC' in symbol else 2000 if 'ETH' in symbol else 300
+        
+        return [
+            [now - 3600000 * i, 
+            base_price + i*10, 
+            base_price + i*15, 
+            base_price + i*5, 
+            base_price + i*12, 
+            1000 + i*100] 
+            for i in range(limit)
+        ]
+    
     def get_portfolio_value(self, market_type=None):
         """Získá hodnotu portfolia pro daný trh"""
         original_type = self.client.options['defaultType']

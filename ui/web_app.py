@@ -1,5 +1,6 @@
 # ui/web_app.py
 import logging
+import threading
 logging.basicConfig(level=logging.INFO)
 from dash.exceptions import PreventUpdate
 import dash
@@ -808,18 +809,30 @@ def render_content(tab):
     elif tab == 'logs':
         return create_logs_layout()
 
+DB_POOL = {}
+
+def get_db_connection():
+    """Získá spojení z poolu nebo vytvoří nové"""
+    thread_id = threading.get_ident()
+    if thread_id not in DB_POOL:
+        DB_POOL[thread_id] = sqlite3.connect('data/trading_history.db', timeout=60)
+    return DB_POOL[thread_id]
+
 # Funkce pro získání obchodní historie z databáze
 def get_trade_history(limit=10):
     """Získá historii obchodů z databáze"""
+    conn = None
+
     try:
-        conn = sqlite3.connect('data/trading_history.db', timeout=30)
+        conn = get_db_connection()
         query = """
         SELECT timestamp, side, symbol, amount, entry_price, profit, market_type
         FROM trades
         ORDER BY timestamp DESC LIMIT ?"""
         
         df = pd.read_sql(query, conn, params=(limit,))
-        conn.close()
+        if conn:
+            conn.commit()
         
         # Kontrola prázdného DataFrame
         if df.empty:

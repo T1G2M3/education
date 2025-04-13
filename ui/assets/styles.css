@@ -401,12 +401,17 @@
     text-align: center;
 }
 
-#main-chart, #equity-curve {
+#main-chart, #equity-curve, #performance-gauge {
     min-height: 400px;
     background: #1e1e1e;
     border-radius: 8px;
     margin: 10px 0;
-    transition: opacity 0.3s ease;  /* Zabrání blikání */
+    transition: opacity 0.3s ease;
+    opacity: 1 !important;
+}
+
+.dash-spinner {
+    opacity: 0.5;
 }
 
 .loading-spinner {

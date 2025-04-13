@@ -75,6 +75,7 @@ def create_dashboard(app):
         except Exception as e:
             logger.error(f"Chyba: {str(e)}")
             return (px.line(title="Chyba"), "Chyba", "Chyba")
+        
 
 
     def calculate_sharpe(df):
