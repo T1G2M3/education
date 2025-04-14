@@ -401,6 +401,16 @@
     text-align: center;
 }
 
+/* Zrušení blikajícího loading indikátoru */
+._dash-loading {
+    display: none !important;
+}
+
+/* Stabilní layout pro kontejnery */
+.metrics-container, .bottom-container {
+    min-height: 200px;
+}
+
 #main-chart, #equity-curve, #performance-gauge {
     min-height: 400px;
     background: #1e1e1e;
@@ -412,12 +422,94 @@
 
 .dash-spinner {
     opacity: 0.5;
+    
 }
-
+/* Zajištění plynulých přechodů */
+.dash-spinner * {
+    transition: none !important;
+}
 .loading-spinner {
     position: absolute;
     top: 50%;
     left: 50%;
     transform: translate(-50%, -50%);
     z-index: 1000;
+}
+
+body {
+    overflow-y: scroll; /* Vždy zobrazit scrollbar pro zabránění poskakování */
+}
+
+/* Vylepšení stabilizace pro všechny grafy */
+.js-plotly-plot {
+    min-height: 200px;
+    opacity: 1 !important;
+    transition: none !important;
+}
+
+/* Stabilizace spinner komponenty */
+._dash-loading-callback {
+    visibility: hidden !important;
+}
+
+/* Zajištění stabilního rozložení i při změně obsahu */
+#page-content > div {
+    min-height: 100vh;
+}
+
+/* Vylepšení stabilizace pro všechny grafy */
+.js-plotly-plot {
+    min-height: 200px;
+    opacity: 1 !important;
+    transition: none !important;
+}
+
+/* Stabilizace spinner komponenty */
+._dash-loading-callback {
+    visibility: hidden !important;
+}
+
+/* Zajištění stabilního rozložení i při změně obsahu */
+#page-content > div {
+    min-height: 100vh;
+}
+
+/* Fixace pro blikající komponenty */
+.chart-container {
+    position: relative;
+    min-height: 400px;
+    background-color: #1e1e1e;
+}
+
+/* Zachování pozice po překreslení */
+.main-container {
+    position: relative;
+    overflow: hidden;
+}
+/* Přidejte na konec souboru */
+.dash-graph {
+    opacity: 1 !important;
+    transition: none !important;
+}
+
+.dash-spinner {
+    display: none !important;
+}
+
+#main-chart, #equity-curve, #performance-gauge {
+    min-height: 400px;
+    background: #1e1e1e !important;
+}
+.metrics-container, .bottom-container {
+    min-height: 200px;
+}
+
+#main-chart, #equity-curve, #performance-gauge {
+    min-height: 400px;
+    background: #1e1e1e !important;
+}
+
+/* Zajištění plynulých přechodů */
+.js-plotly-plot {
+    opacity: 1 !important;
 }

@@ -4,7 +4,7 @@ import threading
 logging.basicConfig(level=logging.INFO)
 from dash.exceptions import PreventUpdate
 import dash
-from dash import dcc, html, Input, Output, State, callback_context
+from dash import ctx, dcc, html, Input, Output, State, callback_context
 import plotly.graph_objects as go
 import pandas as pd
 import numpy as np
@@ -19,6 +19,29 @@ import yaml
 import traceback
 import dash_bootstrap_components as dbc
 from scripts.init_database import import_exchange_data
+
+# Na začátek souboru web_app.py přidejte:
+class DashErrorBoundary:
+    def __init__(self, component, error_message="Došlo k chybě v aplikaci"):
+        self.component = component
+        self.error_message = error_message
+        self.has_error = False
+        
+    def render(self):
+        if self.has_error:
+            return html.Div([
+                html.H3("Chyba v aplikaci", style={"color": "red"}),
+                html.P(self.error_message)
+            ])
+        try:
+            return self.component
+        except Exception as e:
+            self.has_error = True
+            print(f"Error rendering component: {str(e)}")
+            return html.Div([
+                html.H3("Chyba v aplikaci", style={"color": "red"}),
+                html.P(str(e))
+            ])
 
 
 # Konfigurace loggeru
@@ -105,7 +128,7 @@ def init_database():
     conn.commit()
     conn.close()
 
-init_database()
+#init_database()
 
 
 
@@ -142,18 +165,37 @@ login_layout = html.Div([
     ], className="login-page")
 ])
 
-dbc.Spinner(
-    children=[dcc.Graph(id='main-chart')],
-    color="primary",
-    type="grow"
-)
 
 
 # Hlavní layout
 app_layout = html.Div([
     dcc.Location(id='url', refresh=False),
     dcc.Store(id='session-data'),
-    dcc.Interval(id='update-interval', interval=60*1000), # 1 minuta dcc.Interval(id='update-interval', interval=60*1000)
+    dcc.Store(id='session-store'),
+
+
+    dcc.Interval(
+        id='global-update-interval',  # Globální interval pro celou aplikaci
+        interval=300*1000,  # 5 minut
+        n_intervals=0
+    ),
+    dcc.Interval(
+        id='dashboard-update-interval',  # Interval specifický pro dashboard
+        interval=180*1000,  # 3 minuty
+        n_intervals=0
+    ),
+    dcc.Interval(
+        id='slow-update-interval',  # Interval specifický pro pomalejší aktualizace
+        interval=600*1000,  # 10 minut
+        n_intervals=0
+    ),
+
+    # Update interval component
+    dcc.Interval(
+        id='update-interval',
+        interval=180*1000,  # 2 minutes to reduce blinking
+        n_intervals=0
+    ),
     
     html.Div([
         html.Div([
@@ -217,7 +259,7 @@ def save_settings(
         with open("config/config.yaml", 'r', encoding='utf-8') as f:
             config = yaml.safe_load(f)
             
-        if trigger_id == 'risk-settings-btn' and risk_clicks:
+        if trigger_id == 'save-risk-settings' and risk_clicks:
             # Aktualizace hodnot rizika z dashboardu
             config['risk_management']['stop_loss'] = f"{stop_loss}%"
             config['risk_management']['take_profit'] = f"{take_profit}%"
@@ -336,6 +378,11 @@ def display_user_info(pathname):
 # Layout záložky Dashboard
 def create_dashboard_layout():
     return html.Div([
+        # Error message container
+        html.Div(id='error-message-container', style={'display': 'none'}, children=[
+            html.Div(id='error-message', className='error-message')
+        ]),
+        
         # Ovládací prvky
         html.Div([
             dcc.Dropdown(
@@ -374,20 +421,55 @@ def create_dashboard_layout():
         ], className="control-row"),
         
         # Hlavní graf
-        dcc.Graph(id='main-chart', className="main-chart"),
+        html.Div([
+            dbc.Spinner(
+                children=[
+                    dcc.Graph(
+                        id='main-chart', 
+                        className="main-chart",
+                        style={'opacity': '1 !important', 'min-height': '400px'},
+                        config={'displayModeBar': True}
+                    )
+                ],
+                color="primary",
+                type="grow",
+                fullscreen=False
+            )
+        ], className="chart-container", style={'position': 'relative'}),
+        
         
         # Metriky a statistiky
         html.Div([
             html.Div([
                 html.H3("Portfolio Value"),
                 html.Div(id='portfolio-value', className="metric-value"),
-                dcc.Graph(id='equity-curve', className="mini-chart")
+                dbc.Spinner(
+                    children=[
+                        dcc.Graph(
+                            id='equity-curve', 
+                            className="mini-chart",
+                            style={'opacity': '1 !important', 'min-height': '150px'}
+                        )
+                    ],
+                    size="sm",
+                    color="primary"
+                )
             ], className="metric-box"),
             
             html.Div([
                 html.H3("Performance"),
                 html.Div(id='daily-change', className="metric-value"),
-                dcc.Graph(id='performance-gauge', className="mini-chart")
+                dbc.Spinner(
+                    children=[
+                        dcc.Graph(
+                            id='performance-gauge', 
+                            className="mini-chart",
+                            style={'opacity': '1 !important', 'min-height': '150px'}
+                        )
+                    ],
+                    size="sm",
+                    color="primary"
+                )
             ], className="metric-box"),
             
             html.Div([
@@ -440,7 +522,7 @@ def create_dashboard_layout():
                     dcc.Input(id='take-profit-input', type='number', value=float(config['risk_management']['take_profit'].strip('%')), min=0.1, max=100, step=0.1),
                     html.Label("Trade Amount (USDT)"),
                     dcc.Input(id='trade-amount-input', type='number', value=config['risk_management']['max_trade_size'], min=1, max=1000, step=1),
-                    html.Button("Apply", id='risk-settings-btn', className="control-btn", disabled=not current_user.is_authenticated or current_user.role != 'admin')
+                    html.Button("Apply", id='save-risk-settings', className="control-btn", disabled=not current_user.is_authenticated or current_user.role != 'admin')
                 ], className="risk-controls")
             ], className="risk-panel")
         ], className="bottom-container"),
@@ -476,7 +558,7 @@ def create_dashboard_layout():
 def create_multichart_layout():
     return html.Div([
         html.H3("Multi-Asset View", style={'color': 'white'}),
-        
+        #dcc.Interval(id='slow-update-interval', interval=300*1000),  # 5 minut 
         # Ovládací prvky pro výběr párů a timeframe
         html.Div([
             dcc.Dropdown(
@@ -846,7 +928,7 @@ def get_trade_history(limit=10):
 # Funkce pro získání equity křivky z databáze
 def get_equity_data(days=7):
     try:
-        conn = sqlite3.connect('data/trading_history.db')
+        conn = get_db_connection()
         query = """
         SELECT timestamp, equity_value 
         FROM equity 
@@ -1003,6 +1085,10 @@ def generate_trade_history_table(trades):
         html.Th("Cena"),
         html.Th("Zisk")
     ])
+
+    if not trades or len(trades) == 0:
+        return [header, html.Tr([html.Td("Zatím žádné obchody", colSpan=6)])]
+        
     rows.append(header)
     
     for trade in trades:
@@ -1022,6 +1108,23 @@ def generate_trade_history_table(trades):
         ]))
     
     return rows
+
+'''
+def generate_trade_table(trades):
+    if not trades:
+        return [html.Tr([html.Td("Žádné obchody", colSpan=6)])]
+    
+    return [
+        html.Tr([
+            html.Td(trade['timestamp']),
+            html.Td(trade['side'], style={'color': 'green' if trade['side'] == 'BUY' else 'red'}),
+            html.Td(trade['symbol']),
+            html.Td(f"{trade['amount']:.4f}"),
+            html.Td(f"{trade['entry_price']:.2f}"),
+            html.Td(f"{trade['profit']:.2f}", style={'color': 'green' if trade['profit'] > 0 else 'red'})
+        ]) for trade in trades
+    ]
+'''
 
 def calculate_performance_metrics(market_type=None):
     """Vypočítá výkonnostní metriky na základě historie obchodů"""
@@ -1133,6 +1236,20 @@ def create_equity_chart(df):
     fig.update_layout(template='plotly_dark')
     return fig
 
+def update_main_chart(n_intervals):
+    ctx = dash.callback_context
+    if not ctx.triggered or n_intervals % 3 != 0:  # Aktualizovat pouze každé třetí spuštění
+        raise dash.exceptions.PreventUpdate
+    
+    try:
+        # Generování grafu...
+        fig = go.Figure()
+        fig.update_layout(title="Main Chart")
+        return [fig]
+    except Exception as e:
+        logger.error(f"Chyba při aktualizaci grafu: {str(e)}")
+        return [go.Figure()]
+
 # Callback pro aktualizaci hlavního grafu a metrik
 @app.callback(
     [Output('main-chart', 'figure'),
@@ -1144,32 +1261,42 @@ def create_equity_chart(df):
      Output('win-rate', 'children'),
      Output('profit-factor', 'children'),
      Output('total-trades', 'children')],
-    [Input('update-interval', 'n_intervals'),
+    [Input('dashboard-update-interval', 'n_intervals'),
      Input('timeframe-selector', 'value'),
      Input('asset-selector', 'value'),
-     Input('market-type-selector', 'value')]
+     Input('market-type-selector', 'value')],
+    [State('main-chart', 'figure')]  # Přidání stavu pro prevenci zbytečných překreslení
 )
-def update_dashboard(n_intervals, timeframe, asset, market_type):
+def update_dashboard(n_intervals, timeframe, asset, market_type, session_data):
+
+    if n_intervals is None:
+        raise dash.exceptions.PreventUpdate
+
+    if not session_data or not session_data.get('authenticated'):
+        raise PreventUpdate
+    
+    
     try:
+
         # Kontrola povinných parametrů
         if None in (timeframe, asset, market_type):
             raise ValueError("Nebyly vybrány všechny parametry")
-        
-        # Získání dat
+
+        # Získání dat z API nebo databáze
         raw_data = exchange.get_real_time_data(
             symbol=asset,
             timeframe=timeframe,
             market_type=market_type
         )
-        
+
         # Zpracování dat
         df = pd.DataFrame(raw_data, columns=['timestamp', 'open', 'high', 'low', 'close', 'volume'])
         df['timestamp'] = pd.to_datetime(df['timestamp'], unit='ms')
-        
+
         # Výpočet indikátorů
         df['sma20'] = df['close'].rolling(20).mean()
         df['sma50'] = df['close'].rolling(50).mean()
-        
+
         # Vytvoření grafu
         fig = go.Figure()
         fig.add_trace(go.Candlestick(
@@ -1185,44 +1312,51 @@ def update_dashboard(n_intervals, timeframe, asset, market_type):
             template='plotly_dark',
             height=400
         )
-        
+
         # Získání dalších dat
         portfolio = exchange.get_portfolio_value(market_type)
         change = exchange.get_24h_change(asset, market_type)
-        
-        # Získání historie obchodů
         trades = get_trade_history()
-        
-        # Vytvoření kompletní odpovědi
+
         return (
             fig,
             f"{portfolio:.2f} USDT",
             f"{change:.2f}%",
-            generate_trade_table(trades),
+            generate_trade_history_table(trades),
             create_equity_curve(),
             create_performance_gauge(),
             "75.5%",  # Demo hodnoty
-            "1.25", 
-            "42"
+            "1.25",   # Demo hodnoty
+            "42"      # Demo hodnoty
         )
-        
     except Exception as e:
-        logger.error(f"Chyba: {str(e)}")
-        return get_fallback_values()
+        logger.error(f"Critical error: {str(e)}")
+        return (
+            go.Figure(), "N/A", "N/A", [], 
+            go.Figure(), go.Figure(), "N/A", "N/A", "N/A"
+        )
 
 def get_fallback_values():
     """Vrátí výchozí hodnoty v případě chyby"""
     empty_fig = go.Figure()
     empty_fig.update_layout(
         title="Data nejsou dostupná",
-        template='plotly_dark'
+        template='plotly_dark',
+        plot_bgcolor='#1e1e1e',
+        paper_bgcolor='#1e1e1e'
     )
+    
+    # Příprava prázdné tabulky
+    empty_table = [
+        html.Tr([html.Th(col) for col in ["Čas", "Typ", "Pár", "Množství", "Cena", "Zisk"]]),
+        html.Tr([html.Td("Čekání na data...", colSpan=6)])
+    ]
     
     return (
         empty_fig,  # main-chart
         "N/A",      # portfolio-value
         "N/A",      # daily-change
-        [],         # trade-history
+        empty_table,  # trade-history
         empty_fig,  # equity-curve
         empty_fig,  # performance-gauge
         "N/A",      # win-rate
@@ -1231,29 +1365,17 @@ def get_fallback_values():
     )
 
 
-def generate_trade_table(trades):
-    if not trades:
-        return [html.Tr([html.Td("Žádné obchody", colSpan=6)])]
-    
-    return [
-        html.Tr([
-            html.Td(trade['timestamp']),
-            html.Td(trade['side'], style={'color': 'green' if trade['side'] == 'BUY' else 'red'}),
-            html.Td(trade['symbol']),
-            html.Td(f"{trade['amount']:.4f}"),
-            html.Td(f"{trade['entry_price']:.2f}"),
-            html.Td(f"{trade['profit']:.2f}", style={'color': 'green' if trade['profit'] > 0 else 'red'})
-        ]) for trade in trades
-    ]
-
+'''
 # Callback pro Multi-Chart záložku
 @app.callback(
     Output('multi-chart-container', 'children'),
-    [Input('update-interval', 'n_intervals'),
+    [
+     Input('update-interval', 'n_intervals'),
      Input('multi-chart-pairs', 'value'),
      Input('multi-chart-timeframe', 'value'),
      Input('multi-chart-market-type', 'value')]
 )
+'''
 def update_multi_charts(_, pairs, timeframe, market_type):
     if not pairs:
         return html.Div("Please select at least one pair", style={'color': 'white'})
@@ -1326,7 +1448,7 @@ def update_multi_charts(_, pairs, timeframe, market_type):
 # Callback pro performance comparison tabulku
 @app.callback(
     Output('performance-table', 'children'),
-    [Input('slow-update-interval', 'n_intervals'),
+    [Input('dashboard-update-interval', 'n_intervals'),
      Input('multi-chart-pairs', 'value'),
      Input('multi-chart-market-type', 'value')]
 )
@@ -1394,7 +1516,7 @@ def update_performance_table(_, pairs, market_type):
      Output('max-drawdown', 'children'),
      Output('trade-distribution', 'figure'),
      Output('profit-distribution', 'figure')],
-    [Input('slow-update-interval', 'n_intervals'),
+    [Input('update-interval', 'n_intervals'),
      Input('performance-timerange', 'value'),
      Input('performance-pair', 'value'),
      Input('performance-market-type', 'value')]
@@ -1608,17 +1730,9 @@ def update_performance_analytics(_, time_range, pair, market_type):
         logger.error(f"Chyba při aktualizaci analýzy výkonu: {str(e)}")
         logger.error(traceback.format_exc())
         
-        # Vytvoření prázdných grafů v případě chyby
-        empty_fig = go.Figure()
-        empty_fig.update_layout(
-            title="No data available",
-            plot_bgcolor='#1e1e1e',
-            paper_bgcolor='#1e1e1e',
-            font=dict(color='white')
-        )
         
         return (
-            empty_fig, "0.00 USDT", "0.0%", "0.0", "0.00 USDT", empty_fig, empty_fig
+           # empty_fig, "0.00 USDT", "0.0%", "0.0", "0.00 USDT", empty_fig, empty_fig
         )
 
 # Callback pro aktualizaci logů

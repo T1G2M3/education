@@ -2,3 +2,63 @@
 [2025-04-13 20:39:15] INFO - ml_strategy - Model ai/models/prod_model_v1.h5 úspěšně načten
 [2025-04-13 20:39:15] INFO - ml_strategy - ML Strategie inicializována s thresholdem 0.7
 [2025-04-13 20:39:15] INFO - main - 🚀 Initializing QuantumTrader AI Engine...
+[2025-04-13 21:22:43] WARNING - saving_utils - Compiled the loaded model, but the compiled metrics have yet to be built. `model.compile_metrics` will be empty until you train or evaluate the model.
+[2025-04-13 21:22:43] INFO - ml_strategy - Model ai/models/prod_model_v1.h5 úspěšně načten
+[2025-04-13 21:22:43] INFO - ml_strategy - ML Strategie inicializována s thresholdem 0.7
+[2025-04-13 21:22:44] INFO - main - 🚀 Initializing QuantumTrader AI Engine...
+[2025-04-13 21:34:12] WARNING - saving_utils - Compiled the loaded model, but the compiled metrics have yet to be built. `model.compile_metrics` will be empty until you train or evaluate the model.
+[2025-04-13 21:34:12] INFO - ml_strategy - Model ai/models/prod_model_v1.h5 úspěšně načten
+[2025-04-13 21:34:12] INFO - ml_strategy - ML Strategie inicializována s thresholdem 0.7
+[2025-04-13 21:34:12] INFO - main - 🚀 Initializing QuantumTrader AI Engine...
+[2025-04-13 21:46:59] WARNING - saving_utils - Compiled the loaded model, but the compiled metrics have yet to be built. `model.compile_metrics` will be empty until you train or evaluate the model.
+[2025-04-13 21:46:59] INFO - ml_strategy - Model ai/models/prod_model_v1.h5 úspěšně načten
+[2025-04-13 21:46:59] INFO - ml_strategy - ML Strategie inicializována s thresholdem 0.7
+[2025-04-13 21:46:59] INFO - main - 🚀 Initializing QuantumTrader AI Engine...
+[2025-04-13 22:00:06] WARNING - saving_utils - Compiled the loaded model, but the compiled metrics have yet to be built. `model.compile_metrics` will be empty until you train or evaluate the model.
+[2025-04-13 22:00:06] INFO - ml_strategy - Model ai/models/prod_model_v1.h5 úspěšně načten
+[2025-04-13 22:00:06] INFO - ml_strategy - ML Strategie inicializována s thresholdem 0.7
+[2025-04-13 22:00:06] INFO - main - 🚀 Initializing QuantumTrader AI Engine...
+[2025-04-13 22:11:06] WARNING - saving_utils - Compiled the loaded model, but the compiled metrics have yet to be built. `model.compile_metrics` will be empty until you train or evaluate the model.
+[2025-04-13 22:11:06] INFO - ml_strategy - Model ai/models/prod_model_v1.h5 úspěšně načten
+[2025-04-13 22:11:06] INFO - ml_strategy - ML Strategie inicializována s thresholdem 0.7
+[2025-04-13 22:11:06] INFO - main - 🚀 Initializing QuantumTrader AI Engine...
+[2025-04-13 22:18:46] WARNING - saving_utils - Compiled the loaded model, but the compiled metrics have yet to be built. `model.compile_metrics` will be empty until you train or evaluate the model.
+[2025-04-13 22:18:46] INFO - ml_strategy - Model ai/models/prod_model_v1.h5 úspěšně načten
+[2025-04-13 22:18:46] INFO - ml_strategy - ML Strategie inicializována s thresholdem 0.7
+[2025-04-13 22:18:46] INFO - main - 🚀 Initializing QuantumTrader AI Engine...
+[2025-04-13 22:32:31] WARNING - saving_utils - Compiled the loaded model, but the compiled metrics have yet to be built. `model.compile_metrics` will be empty until you train or evaluate the model.
+[2025-04-13 22:32:31] INFO - ml_strategy - Model ai/models/prod_model_v1.h5 úspěšně načten
+[2025-04-13 22:32:31] INFO - ml_strategy - ML Strategie inicializována s thresholdem 0.7
+[2025-04-13 22:32:31] INFO - main - 🚀 Initializing QuantumTrader AI Engine...
+[2025-04-13 22:38:02] WARNING - saving_utils - Compiled the loaded model, but the compiled metrics have yet to be built. `model.compile_metrics` will be empty until you train or evaluate the model.
+[2025-04-13 22:38:02] INFO - ml_strategy - Model ai/models/prod_model_v1.h5 úspěšně načten
+[2025-04-13 22:38:02] INFO - ml_strategy - ML Strategie inicializována s thresholdem 0.7
+[2025-04-13 22:38:02] INFO - main - 🚀 Initializing QuantumTrader AI Engine...
+[2025-04-13 22:40:47] WARNING - saving_utils - Compiled the loaded model, but the compiled metrics have yet to be built. `model.compile_metrics` will be empty until you train or evaluate the model.
+[2025-04-13 22:40:47] INFO - ml_strategy - Model ai/models/prod_model_v1.h5 úspěšně načten
+[2025-04-13 22:40:47] INFO - ml_strategy - ML Strategie inicializována s thresholdem 0.7
+[2025-04-13 22:40:47] INFO - main - 🚀 Initializing QuantumTrader AI Engine...
+[2025-04-13 22:49:06] WARNING - saving_utils - Compiled the loaded model, but the compiled metrics have yet to be built. `model.compile_metrics` will be empty until you train or evaluate the model.
+[2025-04-13 22:49:06] INFO - ml_strategy - Model ai/models/prod_model_v1.h5 úspěšně načten
+[2025-04-13 22:49:06] INFO - ml_strategy - ML Strategie inicializována s thresholdem 0.7
+[2025-04-13 22:49:06] INFO - main - 🚀 Initializing QuantumTrader AI Engine...
+[2025-04-13 22:57:46] WARNING - saving_utils - Compiled the loaded model, but the compiled metrics have yet to be built. `model.compile_metrics` will be empty until you train or evaluate the model.
+[2025-04-13 22:57:46] INFO - ml_strategy - Model ai/models/prod_model_v1.h5 úspěšně načten
+[2025-04-13 22:57:46] INFO - ml_strategy - ML Strategie inicializována s thresholdem 0.7
+[2025-04-13 22:57:46] INFO - main - 🚀 Initializing QuantumTrader AI Engine...
+[2025-04-13 23:04:36] WARNING - saving_utils - Compiled the loaded model, but the compiled metrics have yet to be built. `model.compile_metrics` will be empty until you train or evaluate the model.
+[2025-04-13 23:04:36] INFO - ml_strategy - Model ai/models/prod_model_v1.h5 úspěšně načten
+[2025-04-13 23:04:36] INFO - ml_strategy - ML Strategie inicializována s thresholdem 0.7
+[2025-04-13 23:04:36] INFO - main - 🚀 Initializing QuantumTrader AI Engine...
+[2025-04-14 06:07:17] WARNING - saving_utils - Compiled the loaded model, but the compiled metrics have yet to be built. `model.compile_metrics` will be empty until you train or evaluate the model.
+[2025-04-14 06:07:17] INFO - ml_strategy - Model ai/models/prod_model_v1.h5 úspěšně načten
+[2025-04-14 06:07:17] INFO - ml_strategy - ML Strategie inicializována s thresholdem 0.7
+[2025-04-14 06:07:17] INFO - main - 🚀 Initializing QuantumTrader AI Engine...
+[2025-04-14 06:39:12] WARNING - saving_utils - Compiled the loaded model, but the compiled metrics have yet to be built. `model.compile_metrics` will be empty until you train or evaluate the model.
+[2025-04-14 06:39:12] INFO - ml_strategy - Model ai/models/prod_model_v1.h5 úspěšně načten
+[2025-04-14 06:39:12] INFO - ml_strategy - ML Strategie inicializována s thresholdem 0.7
+[2025-04-14 06:39:12] INFO - main - 🚀 Initializing QuantumTrader AI Engine...
+[2025-04-14 16:36:44] WARNING - saving_utils - Compiled the loaded model, but the compiled metrics have yet to be built. `model.compile_metrics` will be empty until you train or evaluate the model.
+[2025-04-14 16:36:44] INFO - ml_strategy - Model ai/models/prod_model_v1.h5 úspěšně načten
+[2025-04-14 16:36:44] INFO - ml_strategy - ML Strategie inicializována s thresholdem 0.7
+[2025-04-14 16:36:44] INFO - main - 🚀 Initializing QuantumTrader AI Engine...

@@ -32,15 +32,17 @@ def create_dashboard(app):
                 html.H3("Win Rate"),
                 html.Div(id='win-rate', className="metric-value")
             ], className='metric-box')
-        ], className='metrics-container')
+        ], className='metrics-container'),
+        html.Div(id='error-message', style={'color': '#ff5555', 'textAlign': 'center'})
     ])
-
+    '''
     @app.callback(
         [Output('equity-curve', 'figure'),
          Output('sharpe-ratio', 'children'),
          Output('win-rate', 'children')],
         [Input('update-interval', 'n_intervals')]
     )
+    '''
     def update_metrics(n):
         """Aktualizuje metriky výkonu"""
         try:

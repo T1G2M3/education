@@ -2,3 +2,63 @@
 2025-04-13 20:39:15,649 - strategies.ml_strategy - INFO - Model ai/models/prod_model_v1.h5 úspěšně načten
 2025-04-13 20:39:15,659 - strategies.ml_strategy - INFO - ML Strategie inicializována s thresholdem 0.7
 2025-04-13 20:39:15,671 - TradingBot - INFO - 🚀 Initializing QuantumTrader AI Engine...
+2025-04-13 21:22:43,976 - absl - WARNING - Compiled the loaded model, but the compiled metrics have yet to be built. `model.compile_metrics` will be empty until you train or evaluate the model.
+2025-04-13 21:22:43,988 - strategies.ml_strategy - INFO - Model ai/models/prod_model_v1.h5 úspěšně načten
+2025-04-13 21:22:43,999 - strategies.ml_strategy - INFO - ML Strategie inicializována s thresholdem 0.7
+2025-04-13 21:22:44,012 - TradingBot - INFO - 🚀 Initializing QuantumTrader AI Engine...
+2025-04-13 21:34:12,164 - absl - WARNING - Compiled the loaded model, but the compiled metrics have yet to be built. `model.compile_metrics` will be empty until you train or evaluate the model.
+2025-04-13 21:34:12,173 - strategies.ml_strategy - INFO - Model ai/models/prod_model_v1.h5 úspěšně načten
+2025-04-13 21:34:12,184 - strategies.ml_strategy - INFO - ML Strategie inicializována s thresholdem 0.7
+2025-04-13 21:34:12,196 - TradingBot - INFO - 🚀 Initializing QuantumTrader AI Engine...
+2025-04-13 21:46:59,421 - absl - WARNING - Compiled the loaded model, but the compiled metrics have yet to be built. `model.compile_metrics` will be empty until you train or evaluate the model.
+2025-04-13 21:46:59,430 - strategies.ml_strategy - INFO - Model ai/models/prod_model_v1.h5 úspěšně načten
+2025-04-13 21:46:59,443 - strategies.ml_strategy - INFO - ML Strategie inicializována s thresholdem 0.7
+2025-04-13 21:46:59,454 - TradingBot - INFO - 🚀 Initializing QuantumTrader AI Engine...
+2025-04-13 22:00:06,901 - absl - WARNING - Compiled the loaded model, but the compiled metrics have yet to be built. `model.compile_metrics` will be empty until you train or evaluate the model.
+2025-04-13 22:00:06,908 - strategies.ml_strategy - INFO - Model ai/models/prod_model_v1.h5 úspěšně načten
+2025-04-13 22:00:06,920 - strategies.ml_strategy - INFO - ML Strategie inicializována s thresholdem 0.7
+2025-04-13 22:00:06,931 - TradingBot - INFO - 🚀 Initializing QuantumTrader AI Engine...
+2025-04-13 22:11:06,389 - absl - WARNING - Compiled the loaded model, but the compiled metrics have yet to be built. `model.compile_metrics` will be empty until you train or evaluate the model.
+2025-04-13 22:11:06,397 - strategies.ml_strategy - INFO - Model ai/models/prod_model_v1.h5 úspěšně načten
+2025-04-13 22:11:06,409 - strategies.ml_strategy - INFO - ML Strategie inicializována s thresholdem 0.7
+2025-04-13 22:11:06,419 - TradingBot - INFO - 🚀 Initializing QuantumTrader AI Engine...
+2025-04-13 22:18:46,508 - absl - WARNING - Compiled the loaded model, but the compiled metrics have yet to be built. `model.compile_metrics` will be empty until you train or evaluate the model.
+2025-04-13 22:18:46,516 - strategies.ml_strategy - INFO - Model ai/models/prod_model_v1.h5 úspěšně načten
+2025-04-13 22:18:46,518 - strategies.ml_strategy - INFO - ML Strategie inicializována s thresholdem 0.7
+2025-04-13 22:18:46,519 - TradingBot - INFO - 🚀 Initializing QuantumTrader AI Engine...
+2025-04-13 22:32:31,322 - absl - WARNING - Compiled the loaded model, but the compiled metrics have yet to be built. `model.compile_metrics` will be empty until you train or evaluate the model.
+2025-04-13 22:32:31,333 - strategies.ml_strategy - INFO - Model ai/models/prod_model_v1.h5 úspěšně načten
+2025-04-13 22:32:31,343 - strategies.ml_strategy - INFO - ML Strategie inicializována s thresholdem 0.7
+2025-04-13 22:32:31,352 - TradingBot - INFO - 🚀 Initializing QuantumTrader AI Engine...
+2025-04-13 22:38:02,244 - absl - WARNING - Compiled the loaded model, but the compiled metrics have yet to be built. `model.compile_metrics` will be empty until you train or evaluate the model.
+2025-04-13 22:38:02,256 - strategies.ml_strategy - INFO - Model ai/models/prod_model_v1.h5 úspěšně načten
+2025-04-13 22:38:02,258 - strategies.ml_strategy - INFO - ML Strategie inicializována s thresholdem 0.7
+2025-04-13 22:38:02,260 - TradingBot - INFO - 🚀 Initializing QuantumTrader AI Engine...
+2025-04-13 22:40:47,527 - absl - WARNING - Compiled the loaded model, but the compiled metrics have yet to be built. `model.compile_metrics` will be empty until you train or evaluate the model.
+2025-04-13 22:40:47,537 - strategies.ml_strategy - INFO - Model ai/models/prod_model_v1.h5 úspěšně načten
+2025-04-13 22:40:47,538 - strategies.ml_strategy - INFO - ML Strategie inicializována s thresholdem 0.7
+2025-04-13 22:40:47,541 - TradingBot - INFO - 🚀 Initializing QuantumTrader AI Engine...
+2025-04-13 22:49:06,330 - absl - WARNING - Compiled the loaded model, but the compiled metrics have yet to be built. `model.compile_metrics` will be empty until you train or evaluate the model.
+2025-04-13 22:49:06,339 - strategies.ml_strategy - INFO - Model ai/models/prod_model_v1.h5 úspěšně načten
+2025-04-13 22:49:06,352 - strategies.ml_strategy - INFO - ML Strategie inicializována s thresholdem 0.7
+2025-04-13 22:49:06,363 - TradingBot - INFO - 🚀 Initializing QuantumTrader AI Engine...
+2025-04-13 22:57:46,781 - absl - WARNING - Compiled the loaded model, but the compiled metrics have yet to be built. `model.compile_metrics` will be empty until you train or evaluate the model.
+2025-04-13 22:57:46,790 - strategies.ml_strategy - INFO - Model ai/models/prod_model_v1.h5 úspěšně načten
+2025-04-13 22:57:46,792 - strategies.ml_strategy - INFO - ML Strategie inicializována s thresholdem 0.7
+2025-04-13 22:57:46,795 - TradingBot - INFO - 🚀 Initializing QuantumTrader AI Engine...
+2025-04-13 23:04:36,975 - absl - WARNING - Compiled the loaded model, but the compiled metrics have yet to be built. `model.compile_metrics` will be empty until you train or evaluate the model.
+2025-04-13 23:04:36,985 - strategies.ml_strategy - INFO - Model ai/models/prod_model_v1.h5 úspěšně načten
+2025-04-13 23:04:36,986 - strategies.ml_strategy - INFO - ML Strategie inicializována s thresholdem 0.7
+2025-04-13 23:04:36,988 - TradingBot - INFO - 🚀 Initializing QuantumTrader AI Engine...
+2025-04-14 06:07:17,319 - absl - WARNING - Compiled the loaded model, but the compiled metrics have yet to be built. `model.compile_metrics` will be empty until you train or evaluate the model.
+2025-04-14 06:07:17,328 - strategies.ml_strategy - INFO - Model ai/models/prod_model_v1.h5 úspěšně načten
+2025-04-14 06:07:17,336 - strategies.ml_strategy - INFO - ML Strategie inicializována s thresholdem 0.7
+2025-04-14 06:07:17,344 - TradingBot - INFO - 🚀 Initializing QuantumTrader AI Engine...
+2025-04-14 06:39:12,819 - absl - WARNING - Compiled the loaded model, but the compiled metrics have yet to be built. `model.compile_metrics` will be empty until you train or evaluate the model.
+2025-04-14 06:39:12,828 - strategies.ml_strategy - INFO - Model ai/models/prod_model_v1.h5 úspěšně načten
+2025-04-14 06:39:12,830 - strategies.ml_strategy - INFO - ML Strategie inicializována s thresholdem 0.7
+2025-04-14 06:39:12,832 - TradingBot - INFO - 🚀 Initializing QuantumTrader AI Engine...
+2025-04-14 16:36:44,503 - absl - WARNING - Compiled the loaded model, but the compiled metrics have yet to be built. `model.compile_metrics` will be empty until you train or evaluate the model.
+2025-04-14 16:36:44,509 - strategies.ml_strategy - INFO - Model ai/models/prod_model_v1.h5 úspěšně načten
+2025-04-14 16:36:44,510 - strategies.ml_strategy - INFO - ML Strategie inicializována s thresholdem 0.7
+2025-04-14 16:36:44,512 - TradingBot - INFO - 🚀 Initializing QuantumTrader AI Engine...
